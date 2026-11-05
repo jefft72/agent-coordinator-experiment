@@ -68,6 +68,57 @@ test.describe('desktop', () => {
     await page.screenshot({ path: shot('desktop-details-animalabs', page) });
   });
 
+  test('stage at rest, mid-phase, and at the end', async ({ page }) => {
+    await page.goto('/?intro=skip');
+    await settle(page, 300);
+    await detailsButton(page, 'animalabs').scrollIntoViewIfNeeded();
+    await detailsButton(page, 'animalabs').click();
+    const stage = page.locator('[data-testid="project-stage"]');
+    await expect(stage).toHaveAttribute('data-mode', 'paused', { timeout: 12_000 });
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: shot('desktop-stage-animalabs-end', page) });
+    await page.locator('[data-testid="stage-phase"]').fill('35');
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: shot('desktop-stage-animalabs-phase35', page) });
+    await page.locator('[data-testid="stage-reset"]').click();
+    await page.waitForTimeout(1_600);
+    await page.screenshot({ path: shot('desktop-stage-animalabs-rest', page) });
+  });
+
+  test('stage clip switching between two project patterns', async ({ browser, baseURL }) => {
+    fs.mkdirSync(SCREENS_DIR, { recursive: true });
+    const context = await browser.newContext({
+      baseURL,
+      viewport: { width: 1440, height: 900 },
+      recordVideo: { dir: SCREENS_DIR, size: { width: 1440, height: 900 } },
+    });
+    const page = await context.newPage();
+    const video = page.video();
+    await page.goto('/?intro=skip');
+    await settle(page, 300);
+    for (const id of ['animalabs', 'opencraft']) {
+      await detailsButton(page, id).scrollIntoViewIfNeeded();
+      await detailsButton(page, id).click();
+      await expect(detailsDialog(page)).toBeVisible();
+      await expect(page.locator('[data-testid="project-stage"]')).toHaveAttribute('data-mode', 'paused', { timeout: 12_000 });
+      await page.waitForTimeout(500);
+      await page.locator('[data-testid="stage-replay"]').click();
+      await page.waitForTimeout(2_500);
+      await page.locator('[data-testid="stage-phase"]').fill('60');
+      await page.waitForTimeout(900);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(400);
+    }
+    await page.close();
+    const target = path.join(SCREENS_DIR, 'desktop-stage-switch.webm');
+    if (video) {
+      await video.saveAs(target);
+      await video.delete();
+    }
+    await context.close();
+    expect(fs.existsSync(target)).toBe(true);
+  });
+
   test('fallback', async ({ page }) => {
     await page.goto('/?webgl=off');
     await settle(page);
@@ -159,6 +210,22 @@ test.describe('mobile', () => {
     await scrollToTop(page);
     await page.waitForTimeout(600);
     await page.screenshot({ path: shot('mobile-full', page), fullPage: true });
+  });
+
+  test('stage at rest and at the end', async ({ page }) => {
+    await page.goto('/?intro=skip');
+    await settle(page, 300);
+    await detailsButton(page, 'opencraft').scrollIntoViewIfNeeded();
+    await detailsButton(page, 'opencraft').tap();
+    await expect(detailsDialog(page)).toBeVisible();
+    await page.locator('[data-testid="stage-open"]').tap();
+    const stage = page.locator('[data-testid="project-stage"]');
+    await expect(stage).toHaveAttribute('data-mode', 'paused', { timeout: 12_000 });
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: shot('mobile-stage-opencraft-end', page) });
+    await page.locator('[data-testid="stage-reset"]').tap();
+    await page.waitForTimeout(1_600);
+    await page.screenshot({ path: shot('mobile-stage-opencraft-rest', page) });
   });
 });
 

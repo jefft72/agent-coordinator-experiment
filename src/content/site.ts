@@ -36,6 +36,7 @@ export const nav: NavItem[] = [
 
 const animalabs: Project = {
   id: 'animalabs',
+  study: 'Scattered, independent bends resolve into one correlated wave.',
   name: 'AnimaLabs',
   kind: 'Research agents and simulation reports',
   role: 'Cal Hacks 13.0 team project, agent layer and reporting pipeline',
@@ -73,6 +74,7 @@ const animalabs: Project = {
 
 const opencraft: Project = {
   id: 'opencraft',
+  study: 'Four bands start out of step and reach alignment.',
   name: 'OpenCraft',
   kind: 'Multi-agent coordination in Minecraft',
   role: 'HackPrinceton Spring 2026 team project, coordination backend',
@@ -105,6 +107,7 @@ const opencraft: Project = {
 
 const diffex: Project = {
   id: 'diffex',
+  study: 'Irregular spacing resolves into an even, ordered run.',
   name: 'Diffex',
   kind: 'Rust agent harness',
   role: 'Co-founder, Diffex (Luntraa Inc.)',
@@ -130,6 +133,7 @@ const diffex: Project = {
 
 const judi: Project = {
   id: 'judi',
+  study: 'Spacing redistributes toward the middle while both ends stay fixed.',
   name: 'Judi Health',
   kind: 'Firecracker execution platform',
   role: 'Backend Software Engineering Intern, Judi Health (formerly Capital Rx)',
@@ -149,6 +153,7 @@ const judi: Project = {
 
 const rtx: Project = {
   id: 'rtx',
+  study: 'A single arc sweeps along the surface from one end to the other.',
   name: 'Purdue Data Mine / RTX',
   kind: 'Aircraft trajectory research',
   role: 'Machine Learning Researcher, Purdue Data Mine with RTX Corporation',
@@ -167,6 +172,7 @@ const rtx: Project = {
 
 const uplate: Project = {
   id: 'uplate',
+  study: 'A slow swell rolls across the surface.',
   name: 'UPlate',
   kind: 'Campus dining and nutrition',
   role: 'Co-founder',

@@ -52,6 +52,8 @@ export interface Project {
   figures: string[];
   /** Full technical explanation, several sentences, shown in details. */
   details: string[];
+  /** One sentence describing the abstract stage pattern for this project. Never a product claim. */
+  study: string;
   /** Present only for the two hackathon wins. */
   award?: Award;
   links: Link[];

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Color, InstancedMesh, MeshStandardMaterial, Object3D, Vector3 } from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { InstancedMesh, Object3D, Vector3 } from 'three';
 import type { ProjectId } from '../content/types';
 import { bladeCount, createField, createSample, sampleBlade, type Field } from './bladeField';
+import { createBladeGeometry, createBladeMaterial } from './bladeMesh';
 import { modulate, type Modulation } from './modulation';
 import { motion } from './motion';
 
@@ -63,21 +63,8 @@ export function Blades() {
   const count = bladeCount(compact);
   const field: Field = useMemo(() => createField({ count, compact }), [count, compact]);
 
-  const geometry = useMemo(
-    () => new RoundedBoxGeometry(field.blade.width, 1, field.blade.depth, 4, field.blade.radius),
-    [field],
-  );
-  const material = useMemo(
-    () =>
-      new MeshStandardMaterial({
-        color: new Color('#9a9ea4'),
-        metalness: 1,
-        roughness: 0.42,
-        envMapIntensity: 1.0,
-        flatShading: false,
-      }),
-    [],
-  );
+  const geometry = useMemo(() => createBladeGeometry(field), [field]);
+  const material = useMemo(() => createBladeMaterial(), []);
   useEffect(() => () => geometry.dispose(), [geometry]);
   useEffect(() => () => material.dispose(), [material]);
 
@@ -146,7 +133,7 @@ export function Blades() {
 
   useFrame((_, delta) => {
     const state = stateRef.current;
-    if (!motion.active || !state) return;
+    if (!motion.active || motion.suspended || !state) return;
     const aspect = size.width / size.height;
     if (motion.reducedMotion) {
       // Static pose: reveal 1, fold straight from the store, no easing, no pointer.

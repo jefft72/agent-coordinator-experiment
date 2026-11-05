@@ -25,13 +25,13 @@ const narrowViewport = { width: 320, height: 700 };
 
 const desktop: Project = {
   name: 'desktop',
-  testMatch: [/opening\.spec\.ts$/, /loader\.spec\.ts$/, /sections\.spec\.ts$/, /subpath\.spec\.ts$/],
+  testMatch: [/opening\.spec\.ts$/, /loader\.spec\.ts$/, /sections\.spec\.ts$/, /stage\.spec\.ts$/, /subpath\.spec\.ts$/],
   use: { ...chrome, viewport: desktopViewport },
 };
 
 const mobile: Project = {
   name: 'mobile',
-  testMatch: [/opening\.spec\.ts$/, /sections\.spec\.ts$/],
+  testMatch: [/opening\.spec\.ts$/, /sections\.spec\.ts$/, /stage\.spec\.ts$/],
   use: {
     ...chrome,
     viewport: mobileViewport,

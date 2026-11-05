@@ -18,6 +18,8 @@ export interface MotionState {
   reducedMotion: boolean;
   /** False once the opening has scrolled out of view; the scene stops rendering. */
   active: boolean;
+  /** True while the project stage owns the only live renderer; the opening scene holds its frame. */
+  suspended: boolean;
 }
 
 export const motion: MotionState = {
@@ -27,6 +29,7 @@ export const motion: MotionState = {
   focus: null,
   reducedMotion: false,
   active: true,
+  suspended: false,
 };
 
 /** Scroll distance, as a fraction of the viewport height, over which the fold completes. */

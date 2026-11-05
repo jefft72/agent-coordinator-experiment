@@ -54,6 +54,8 @@ Every action in the workflow is pinned to a release commit SHA with the version 
 - Pointer movement over the opening causes a local, travelling change in blade alignment that settles when the pointer leaves. Touch devices get the same reveal and scroll transition without the pointer response.
 - Each project row ends in a blade rule: a line of edge-on plates drawn from the same modulation the sculpture uses. Hovering, focusing, or selecting the row turns the plates in that project's own pattern and they settle when the row is left. This works on touch, on the keyboard, without WebGL, and as a still pattern under reduced motion.
 - Each project row has a Details control that opens a native dialog. Escape, the Close control, or the backdrop closes it, and focus returns to the control that opened it.
+- Inside the details, the project stage shows the same folded surface framed on its crest, performing that project's pattern: AnimaLabs resolves scattered bends into one correlated wave, OpenCraft brings four offset bands into alignment, Diffex settles irregular spacing into order, Judi Health redistributes spacing while both ends stay fixed, Purdue Data Mine / RTX sweeps a single arc, UPlate rolls a slow swell. The pattern plays once when the stage opens; Replay runs it again, the Phase slider holds any instant for inspection (arrow keys work), and Reset returns to the composed rest pose. On phones the stage sits behind an explicit Open the study control. Under reduced motion, or without WebGL, every control applies its phase immediately and Replay shows the end state. The stage is labelled as an abstract interpretation, never a product recording, and every fact and link stays readable without it.
+- While a details dialog is open the opening scene holds its frame, so only one renderer draws at a time.
 - Section links stop below the fixed header.
 
 Query parameters used by the test suite: `?intro=skip`, `?intro=play`, `?webgl=off`, `?scene=stall`, `?scene=fail`, `?scene=chunk-fail`.
@@ -62,7 +64,8 @@ Query parameters used by the test suite: `?intro=skip`, `?intro=play`, `?webgl=o
 
 `src/scene/bladeField.ts` is pure math shared by the WebGL scene, the SVG fallback, and the unit tests: the spine, plate heights, the twist expressed relative to each plate's face-on pose, the loader's collapsed pose, the scroll fold, and the camera.
 `src/scene/environment.ts` builds the reflection environment from a graded dome and three light shapes whose positions are exported from the field, so the fallback shades its faces from the same lights.
-`src/scene/modulation.ts` holds the six per-project patterns used by both the sculpture and the inline blade rules.
+`src/scene/modulation.ts` holds the six per-project patterns as functions of a phase from 0 to 1. The project stage applies them at full strength; the sculpture's focus response and the inline blade rules apply the same functions at a fifth of the amplitude.
+`src/scene/StageScene.tsx` renders the stage with the opening's geometry, material, and environment through `src/scene/bladeMesh.ts`; `src/scene/StageFallback.tsx` projects the same picture to SVG through `src/scene/faces.ts` when WebGL is unavailable.
 
 ## Fonts
 

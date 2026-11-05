@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import type { SceneStatus } from '../loader/useLoadSequence';
 import { useMediaQuery } from '../lib/useMediaQuery';
+import { webglAvailable } from '../lib/webgl';
 import { SceneErrorBoundary } from '../scene/SceneErrorBoundary';
 import { SceneFallback } from '../scene/SceneFallback';
 
@@ -17,18 +18,9 @@ export interface SceneHostProps {
   onFail: (reason: string) => void;
 }
 
-function sceneParam(name: 'webgl' | 'scene'): string | null {
+function sceneParam(name: 'scene'): string | null {
   if (typeof window === 'undefined') return null;
   return new URLSearchParams(window.location.search).get(name);
-}
-
-function hasWebGL(): boolean {
-  try {
-    const canvas = document.createElement('canvas');
-    return Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'));
-  } catch {
-    return false;
-  }
 }
 
 /**
@@ -49,7 +41,7 @@ export function SceneHost({ status, onReady, onFallback, onFail }: SceneHostProp
       onFail('forced by ?scene=fail');
       return;
     }
-    if (sceneParam('webgl') === 'off' || !hasWebGL()) {
+    if (!webglAvailable()) {
       onFallback();
       return;
     }

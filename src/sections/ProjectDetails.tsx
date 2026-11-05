@@ -2,6 +2,9 @@ import { createContext, useEffect, useRef, useState, type MouseEvent, type React
 import type { Project, ProjectId } from '../content/types';
 import { projectById } from '../content/site';
 import { withBase } from '../lib/base';
+import { useMediaQuery } from '../lib/useMediaQuery';
+import { motion } from '../scene/motion';
+import { ProjectStage } from './ProjectStage';
 import { ContentLink } from './ProjectRow';
 import './sections.css';
 
@@ -39,6 +42,16 @@ interface OpenState {
  */
 export function DetailsProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState<OpenState | null>(null);
+
+  // The stage owns the only live renderer while a dialog is open; the opening scene holds its frame.
+  useEffect(() => {
+    motion.suspended = open !== null;
+    document.documentElement.dataset.sceneSuspended = open !== null ? 'true' : 'false';
+    return () => {
+      motion.suspended = false;
+      document.documentElement.dataset.sceneSuspended = 'false';
+    };
+  }, [open]);
 
   const api: DetailsApi = {
     openId: open?.id ?? null,
@@ -78,6 +91,7 @@ export interface ProjectDetailsProps {
 export function ProjectDetails({ project, opener = null, onClose }: ProjectDetailsProps) {
   const ref = useRef<HTMLDialogElement>(null);
   const openerRef = useRef(opener);
+  const compact = useMediaQuery('(max-width: 767px)');
 
   useEffect(() => {
     openerRef.current = opener;
@@ -156,6 +170,8 @@ export function ProjectDetails({ project, opener = null, onClose }: ProjectDetai
 
         <p className="details__role">{project.role}</p>
         {project.dates ? <p className="details__dates">{project.dates}</p> : null}
+
+        <ProjectStage key={project.id} project={project} compact={compact} />
 
         <p className="details__summary">{project.summary}</p>
 
