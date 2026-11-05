@@ -73,7 +73,7 @@ function SceneContent({ onFirstFrame, onFail }: OpeningSceneProps) {
     let lastFold = NaN;
     let lastReveal = NaN;
     const tick = () => {
-      if (motion.active) {
+      if (motion.active && !motion.suspended) {
         if (!motion.reducedMotion) invalidate();
         else if (motion.fold !== lastFold || motion.reveal !== lastReveal) invalidate();
         lastFold = motion.fold;
@@ -88,7 +88,7 @@ function SceneContent({ onFirstFrame, onFail }: OpeningSceneProps) {
   useFrame((state, delta) => {
     const r = refs.current;
     const reveal = motion.reducedMotion ? 1 : motion.reveal;
-    cameraFor(compact, { reveal, fold: motion.fold }, r.pose);
+    cameraFor(compact, { reveal, fold: motion.fold }, r.pose, size);
     const [px, py, pz] = r.pose.position;
     const [tx, ty, tz] = r.pose.target;
     if (!r.primed || motion.reducedMotion) {

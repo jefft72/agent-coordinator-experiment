@@ -166,6 +166,37 @@ test.describe('opening', () => {
     expect(await documentScrollWidth(page), 'scroll width after scrolling to the bottom').toBeLessThanOrEqual(320);
   });
 
+  test('compact: the identity lines stay clear of the artwork', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'mobile', 'narrow');
+    // The fallback projects the same blades through the same camera, so its polygons stand in for the WebGL silhouette.
+    await gotoAndSettle(page, '/?intro=skip&webgl=off');
+    await expect(scene(page)).toHaveAttribute('data-render-state', 'fallback');
+    const identity = await requireBox(page.getByTestId('identity'));
+    const art = await page.evaluate(() => {
+      let left = Infinity;
+      let top = Infinity;
+      let right = -Infinity;
+      let bottom = -Infinity;
+      for (const polygon of Array.from(document.querySelectorAll('[data-testid="scene-fallback"] polygon'))) {
+        const r = polygon.getBoundingClientRect();
+        left = Math.min(left, r.left);
+        top = Math.min(top, r.top);
+        right = Math.max(right, r.right);
+        bottom = Math.max(bottom, r.bottom);
+      }
+      return { left, top, right, bottom };
+    });
+    const overlapsVertically = art.top < identity.y + identity.height && art.bottom > identity.y;
+    const overlapsHorizontally = art.left < identity.x + identity.width && art.right > identity.x;
+    expect(
+      overlapsVertically && overlapsHorizontally,
+      `artwork ${JSON.stringify(art)} overlaps the identity block ${JSON.stringify(identity)}`,
+    ).toBe(false);
+    expect(art.top, 'the artwork should start below the identity lines').toBeGreaterThanOrEqual(identity.y + identity.height);
+    const work = await requireBox(page.locator('h2#work-heading'));
+    expect(art.bottom, 'the artwork should end above the Work heading').toBeLessThanOrEqual(work.y);
+  });
+
   test('mobile: the name fits, Work follows it, and both awards read in sequence', async ({ page }, testInfo) => {
     skipUnlessProject(testInfo, 'mobile');
     await gotoAndSettle(page, '/?intro=skip');

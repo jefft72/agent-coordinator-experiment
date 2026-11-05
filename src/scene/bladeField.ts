@@ -190,7 +190,9 @@ const COMPACT: Layout = {
     height: 1.3,
   },
   camera: {
-    rest: { position: [0.0, 0.4, 11.6], target: [0.3, -0.9, 0.0], fov: 40 },
+    // The camera sits right of centre and slightly high, so the lit turning face clears the
+    // right edge at 390px and the crest starts below the identity lines.
+    rest: { position: [0.55, 0.54, 11.6], target: [0.85, -0.76, 0.0], fov: 40 },
     collapsed: { position: [-2.4, -1.2, 7.6], target: [0.6, -0.8, -0.4] },
     foldDrift: [0.5, 0.1, 0.0],
   },
@@ -589,11 +591,28 @@ export function sampleBlade(field: Field, i: number, params: SampleParams, out: 
   return out;
 }
 
-/** Camera pose for the given reveal and fold; `out` avoids allocation. */
+export interface Viewport {
+  width: number;
+  height: number;
+}
+
+/** Compact viewports shorter than this lower and shrink the artwork so it stays clear of the identity lines. */
+export const COMPACT_FULL_HEIGHT = 760;
+
+/**
+ * Camera pose for the given reveal and fold; `out` avoids allocation. On a
+ * compact layout shorter than COMPACT_FULL_HEIGHT the camera rises a little
+ * (lowering the artwork by 0.35 CSS pixels per missing pixel of height) and
+ * dollies back (shrinking it toward its centre), so a 320 by 700 screen keeps
+ * the last identity line and the Work heading clear of the fold while
+ * 390 by 844 is unchanged. The nudge is applied in world units at the target
+ * distance.
+ */
 export function cameraFor(
   compact: boolean,
   params: { reveal: number; fold: number },
   out: CameraPose = { position: [0, 0, 0], target: [0, 0, 0], fov: 32 },
+  viewport?: Viewport,
 ): CameraPose {
   const layout = compact ? COMPACT : DESKTOP;
   const reveal = easeInOutCubic(params.reveal);
@@ -604,6 +623,21 @@ export function cameraFor(
     out.target[a] = lerp(collapsed.target[a], rest.target[a], reveal) + foldDrift[a] * fold * 0.6;
   }
   out.fov = rest.fov;
+  if (compact && viewport && viewport.height > 0 && viewport.height < COMPACT_FULL_HEIGHT) {
+    const short = COMPACT_FULL_HEIGHT - viewport.height;
+    const dx = out.position[0] - out.target[0];
+    const dy = out.position[1] - out.target[1];
+    const dz = out.position[2] - out.target[2];
+    const dist = Math.hypot(dx, dy, dz) || 1;
+    const unitsPerPx = (2 * dist * Math.tan((out.fov * DEG) / 2)) / viewport.height;
+    // Raising the camera lowers the artwork on screen; dollying back shrinks it toward its centre.
+    const raise = short * 0.35 * unitsPerPx;
+    const dolly = short * 0.01;
+    out.position[0] += (dx / dist) * dolly;
+    out.position[1] += raise + (dy / dist) * dolly;
+    out.position[2] += (dz / dist) * dolly;
+    out.target[1] += raise;
+  }
   return out;
 }
 
@@ -647,6 +681,13 @@ export function projectToScreen(
   out.depth = depth;
   return out;
 }
+
+/**
+ * Camera for the project stage in the details dialog: close on the desktop
+ * crest, where the fold turns back around its pocket, so the per-project
+ * deformation reads at the scale of individual plates.
+ */
+export const STAGE_CAMERA: CameraPose = { position: [2.5, 1.8, 6.1], target: [4.3, 0.9, -1.6], fov: 30 };
 
 /** Blade count the scene uses for each layout. */
 export function bladeCount(compact: boolean): number {

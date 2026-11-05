@@ -205,3 +205,43 @@ describe('bladeField', () => {
     expect(p.y).toBeLessThan(0.5);
   });
 });
+
+describe('compact camera framing', () => {
+  it('is unchanged at the reference phone size and lowers the artwork on shorter viewports', () => {
+    const reference = cameraFor(true, { reveal: 1, fold: 0 }, undefined, { width: 390, height: 844 });
+    const plain = cameraFor(true, { reveal: 1, fold: 0 });
+    expect(reference.position).toEqual(plain.position);
+    expect(reference.target).toEqual(plain.target);
+
+    const short = cameraFor(true, { reveal: 1, fold: 0 }, undefined, { width: 320, height: 700 });
+    expect(short.target[1]).toBeGreaterThan(plain.target[1]);
+    const dist = (pose: typeof plain) =>
+      Math.hypot(pose.target[0] - pose.position[0], pose.target[1] - pose.position[1], pose.target[2] - pose.position[2]);
+    // 0.35 pixels per pixel of missing height: 21 CSS pixels at 700, in world units at the target distance.
+    const unitsPerPx = (2 * dist(plain) * Math.tan((plain.fov * Math.PI) / 360)) / 700;
+    expect(short.target[1] - plain.target[1]).toBeCloseTo(21 * unitsPerPx, 6);
+    // And the camera dollies back 0.6 units.
+    expect(dist(short) - dist(plain)).toBeCloseTo(0.6, 6);
+  });
+
+  it('projects the crest lower on a 320 by 700 screen than the plain pose would', () => {
+    const field = createField({ count: bladeCount(true), compact: true });
+    const crest = sampleBlade(field, Math.floor(field.count / 2), { reveal: 1, fold: 0 });
+    const plain = projectToScreen(crest.position, cameraFor(true, { reveal: 1, fold: 0 }), 320 / 700);
+    const nudged = projectToScreen(
+      crest.position,
+      cameraFor(true, { reveal: 1, fold: 0 }, undefined, { width: 320, height: 700 }),
+      320 / 700,
+    );
+    const shift = nudged.y * 700 - plain.y * 700;
+    expect(shift).toBeGreaterThan(12);
+    expect(shift).toBeLessThan(40);
+  });
+
+  it('does not touch the desktop camera', () => {
+    const plain = cameraFor(false, { reveal: 1, fold: 0 });
+    const sized = cameraFor(false, { reveal: 1, fold: 0 }, undefined, { width: 1280, height: 600 });
+    expect(sized.position).toEqual(plain.position);
+    expect(sized.target).toEqual(plain.target);
+  });
+});
