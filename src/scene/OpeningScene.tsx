@@ -73,7 +73,7 @@ function SceneContent({ onFirstFrame, onFail }: OpeningSceneProps) {
     let lastFold = NaN;
     let lastReveal = NaN;
     const tick = () => {
-      if (motion.active && !motion.suspended) {
+      if (motion.active) {
         if (!motion.reducedMotion) invalidate();
         else if (motion.fold !== lastFold || motion.reveal !== lastReveal) invalidate();
         lastFold = motion.fold;

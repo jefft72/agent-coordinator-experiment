@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { InstancedMesh, Object3D, Vector3 } from 'three';
-import type { ProjectId } from '../content/types';
 import { bladeCount, createField, createSample, sampleBlade, type Field } from './bladeField';
 import { createBladeGeometry, createBladeMaterial } from './bladeMesh';
-import { modulate, type Modulation } from './modulation';
 import { motion } from './motion';
 
 /** Pointer response: damped spring per blade coupled to its neighbours. */
@@ -20,15 +18,11 @@ interface FrameState {
   dummy: Object3D;
   projected: Vector3;
   sample: ReturnType<typeof createSample>;
-  mod: Modulation;
   excite: Float32Array;
   velocity: Float32Array;
   target: Float32Array;
   reveal: number;
   fold: number;
-  focusAmount: number;
-  focusTime: number;
-  focusMode: ProjectId | null;
   appliedFold: number;
   appliedStatic: boolean;
 }
@@ -38,15 +32,11 @@ function createFrameState(count: number): FrameState {
     dummy: new Object3D(),
     projected: new Vector3(),
     sample: createSample(),
-    mod: { u: 0, roll: 0, push: 0 },
     excite: new Float32Array(count),
     velocity: new Float32Array(count),
     target: new Float32Array(count),
     reveal: motion.reveal,
     fold: motion.fold,
-    focusAmount: 0,
-    focusTime: 0,
-    focusMode: null,
     appliedFold: -1,
     appliedStatic: false,
   };
@@ -82,22 +72,11 @@ export function Blades() {
   const write = (state: FrameState, reveal: number, fold: number, pointer: boolean, aspect: number) => {
     const mesh = meshRef.current;
     if (!mesh) return;
-    const { dummy, sample, mod, excite } = state;
+    const { dummy, sample, excite } = state;
     for (let i = 0; i < count; i++) {
-      let uOffset = 0;
-      let rollOffset = 0;
-      let normalOffset = 0;
-      if (pointer) {
-        rollOffset = excite[i] * MAX_ROLL;
-        normalOffset = excite[i] * MAX_PUSH;
-      }
-      if (state.focusAmount > 0.001 && state.focusMode) {
-        modulate(state.focusMode, i, field.u[i], state.focusTime, mod);
-        uOffset += mod.u * state.focusAmount;
-        rollOffset += mod.roll * state.focusAmount;
-        normalOffset += mod.push * state.focusAmount;
-      }
-      sampleBlade(field, i, { reveal, fold, uOffset, rollOffset, normalOffset }, sample);
+      const rollOffset = pointer ? excite[i] * MAX_ROLL : 0;
+      const normalOffset = pointer ? excite[i] * MAX_PUSH : 0;
+      sampleBlade(field, i, { reveal, fold, rollOffset, normalOffset }, sample);
       dummy.position.set(sample.position[0], sample.position[1], sample.position[2]);
       dummy.quaternion.set(sample.quaternion[0], sample.quaternion[1], sample.quaternion[2], sample.quaternion[3]);
       dummy.scale.set(sample.scale[0] / field.blade.width, sample.scale[1], sample.scale[2] / field.blade.depth);
@@ -133,27 +112,20 @@ export function Blades() {
 
   useFrame((_, delta) => {
     const state = stateRef.current;
-    if (!motion.active || motion.suspended || !state) return;
+    if (!motion.active || !state) return;
     const aspect = size.width / size.height;
     if (motion.reducedMotion) {
       // Static pose: reveal 1, fold straight from the store, no easing, no pointer.
       if (state.appliedStatic && state.appliedFold === motion.fold) return;
       state.appliedStatic = true;
       state.appliedFold = motion.fold;
-      state.focusAmount = 0;
       write(state, 1, motion.fold, false, aspect);
       return;
     }
+    state.appliedStatic = false;
     const dt = Math.min(delta, 1 / 30);
     state.reveal = ease(state.reveal, motion.reveal, 16, dt);
     state.fold = ease(state.fold, motion.fold, 12, dt);
-    const focused = motion.focus !== null;
-    if (focused && motion.focus !== state.focusMode) {
-      state.focusMode = motion.focus;
-      state.focusTime = 0;
-    }
-    state.focusAmount = ease(state.focusAmount, focused ? 1 : 0, 3, dt);
-    if (state.focusAmount > 0.001) state.focusTime += dt;
     step(state, dt);
     write(state, state.reveal, state.fold, true, aspect);
   });

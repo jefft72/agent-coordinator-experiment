@@ -6,6 +6,7 @@
  */
 
 import type {
+  Chapter,
   Education,
   ExperienceEntry,
   Identity,
@@ -27,28 +28,66 @@ export const identity: Identity = {
   ],
 };
 
+/** The chapters after the opening, in page order. Contact is a destination inside About. */
+export const chapters: Chapter[] = [
+  { id: 'hackathons', number: '01', title: 'Hackathons' },
+  { id: 'experience', number: '02', title: 'Experience' },
+  { id: 'ventures', number: '03', title: 'Ventures' },
+  { id: 'about', number: '04', title: 'About' },
+];
+
 export const nav: NavItem[] = [
-  { label: 'Work', href: '#work' },
   { label: 'Hackathons', href: '#hackathons' },
+  { label: 'Experience', href: '#experience' },
+  { label: 'Ventures', href: '#ventures' },
   { label: 'About', href: '#about' },
   { label: 'Contact', href: '#contact' },
 ];
 
 const animalabs: Project = {
   id: 'animalabs',
-  study: 'Scattered, independent bends resolve into one correlated wave.',
   name: 'AnimaLabs',
   kind: 'Research agents and simulation reports',
   role: 'Cal Hacks 13.0 team project, agent layer and reporting pipeline',
   summary:
     'I built the research and analyst agents, along with an agent-driven LaTeX reporting pipeline grounded in deterministic simulation analysis.',
   figures: ['7 simulation-based reports', '23 charts', 'Checksum-verified artifacts'],
-  details: [
-    'The research agent searches Europe PMC through Apify and proposes experiments with citations.',
-    'The analyst agent turns simulation outputs into findings and compares them with published studies.',
-    'The agent-driven reporting pipeline produces LaTeX reports and checksum-verified artifacts from the analysis.',
-    'Our team’s simulations reproduced published Parkinson’s disease findings on data the model was not fitted to.',
+  contributions: [
+    {
+      id: 'research',
+      label: 'Research agent',
+      body: ['The research agent searches Europe PMC through Apify and proposes experiments with citations.'],
+      steps: ['search', 'propose'],
+    },
+    {
+      id: 'analyst',
+      label: 'Analyst agent',
+      body: [
+        'The analyst agent turns simulation outputs into findings and compares them with published studies.',
+        'Our team’s simulations reproduced published Parkinson’s disease findings on data the model was not fitted to.',
+      ],
+      steps: ['simulate', 'compare'],
+    },
+    {
+      id: 'reports',
+      label: 'Reports',
+      body: [
+        'The agent-driven reporting pipeline produces LaTeX reports and checksum-verified artifacts from the analysis.',
+        'The pipeline produced 7 simulation-based reports and 23 charts, with every artifact checksum-verified.',
+      ],
+      steps: ['report'],
+    },
   ],
+  flow: {
+    title: 'How a report is produced',
+    steps: [
+      { id: 'search', label: 'Europe PMC', note: 'searched through Apify' },
+      { id: 'propose', label: 'Research agent', note: 'proposes cited experiments' },
+      { id: 'simulate', label: 'Simulation outputs', note: 'deterministic analysis' },
+      { id: 'compare', label: 'Analyst agent', note: 'findings against published studies' },
+      { id: 'report', label: 'LaTeX pipeline', note: '7 reports, 23 charts, checksum-verified' },
+    ],
+  },
   award: {
     event: 'Cal Hacks 13.0',
     titles: [
@@ -74,16 +113,44 @@ const animalabs: Project = {
 
 const opencraft: Project = {
   id: 'opencraft',
-  study: 'Four bands start out of step and reach alignment.',
   name: 'OpenCraft',
   kind: 'Multi-agent coordination in Minecraft',
   role: 'HackPrinceton Spring 2026 team project, coordination backend',
   summary: 'I built the coordination backend that lets Minecraft agents share jobs, state, and memory.',
   figures: ['Supabase Postgres, Realtime, and pgvector'],
-  details: [
-    'The backend uses Supabase Postgres, Realtime, and pgvector to store jobs, track agents, and share memory.',
-    'I built an integration harness that simulates job contention, memory writes, and chat-based task handoff.',
+  contributions: [
+    {
+      id: 'jobs',
+      label: 'Shared jobs',
+      body: [
+        'The backend uses Supabase Postgres, Realtime, and pgvector to store jobs, track agents, and share memory.',
+        'Jobs and each agent’s state are stored in Postgres, and Supabase Realtime pushes the changes out to the agents.',
+      ],
+      steps: ['agents', 'postgres', 'realtime'],
+    },
+    {
+      id: 'memory',
+      label: 'Agent memory',
+      body: ['Shared memory is kept in pgvector, so an agent can retrieve what another agent has already recorded.'],
+      steps: ['agents', 'pgvector'],
+    },
+    {
+      id: 'testing',
+      label: 'Integration testing',
+      body: ['I built an integration harness that simulates job contention, memory writes, and chat-based task handoff.'],
+      steps: ['harness'],
+    },
   ],
+  flow: {
+    title: 'What the backend coordinates',
+    steps: [
+      { id: 'agents', label: 'Minecraft agents', note: 'take jobs, report state, write memory' },
+      { id: 'postgres', label: 'Supabase Postgres', note: 'jobs and agent state' },
+      { id: 'realtime', label: 'Realtime', note: 'changes pushed to every agent' },
+      { id: 'pgvector', label: 'pgvector', note: 'shared memory' },
+      { id: 'harness', label: 'Integration harness', note: 'job contention, memory writes, chat handoff' },
+    ],
+  },
   award: {
     event: 'HackPrinceton Spring 2026',
     titles: [{ outcome: 'Winner', title: '[Dedalus] Best use of Dedalus Containers' }],
@@ -105,9 +172,100 @@ const opencraft: Project = {
   ],
 };
 
+const judi: Project = {
+  id: 'judi',
+  name: 'Judi Health',
+  kind: 'Firecracker execution platform',
+  role: 'Backend Software Engineering Intern, Judi Health (formerly Capital Rx)',
+  dates: 'June 2026 to present, remote',
+  summary:
+    'I’m leading development of a new Firecracker microVM platform on AWS that gives engineers and coding agents isolated execution environments.',
+  figures: ['Pharmacy claim adjudication platform serving 5M+ contracted lives'],
+  contributions: [
+    {
+      id: 'platform',
+      label: 'New platform',
+      body: [
+        'The platform runs Firecracker microVMs on AWS so that engineers and coding agents each get an isolated execution environment.',
+        'I’m working with the platform VP toward broader deployment across engineering workflows.',
+      ],
+      steps: ['microvm'],
+    },
+    {
+      id: 'scheduler',
+      label: 'Capacity scheduler and lifecycle',
+      body: ['I designed a capacity-aware scheduler that places microVMs across EC2 hosts and manages their lifecycle.'],
+      steps: ['scheduler', 'hosts'],
+    },
+    {
+      id: 'claims',
+      label: 'Claims backend',
+      body: ['I also develop backend services for a pharmacy claim adjudication platform serving 5M+ contracted lives.'],
+    },
+    {
+      id: 'linter',
+      label: 'Rust linter in CI',
+      body: ['For the claims pipeline, I built a Rust linter that checks type-safe function calls and integrated it into CI.'],
+    },
+  ],
+  flow: {
+    title: 'Scope of the microVM platform',
+    steps: [
+      { id: 'scheduler', label: 'Capacity-aware scheduler', note: 'placement and lifecycle' },
+      { id: 'hosts', label: 'EC2 hosts', note: 'placement by available capacity' },
+      { id: 'microvm', label: 'Firecracker microVMs', note: 'isolated execution for engineers and coding agents' },
+    ],
+  },
+  links: [],
+  evidence: [],
+};
+
+const rtx: Project = {
+  id: 'rtx',
+  name: 'Purdue Data Mine / RTX',
+  kind: 'Aircraft trajectory research',
+  role: 'Machine Learning Researcher, Purdue Data Mine with RTX Corporation',
+  dates: 'August 2026 to present, remote',
+  summary:
+    'I’m developing an ML trajectory system for unmanned aircraft, with real-time obstacle avoidance in dynamic airspace.',
+  figures: ['Mentored by Raytheon engineers'],
+  contributions: [
+    {
+      id: 'trajectory',
+      label: 'Trajectory system',
+      body: [
+        'The system plans trajectories for unmanned aircraft and avoids obstacles in real time as the airspace changes.',
+        'Raytheon engineers mentor the project’s work on mission-critical software.',
+      ],
+      steps: ['path', 'obstacle'],
+    },
+    {
+      id: 'simulation',
+      label: 'Simulation and synthetic flight data',
+      body: ['I’m building a 3D simulation environment that uses path-planning algorithms to generate synthetic flight data.'],
+      steps: ['path'],
+    },
+    {
+      id: 'objectives',
+      label: 'Training objectives',
+      body: ['The work considers safety, route efficiency, and waypoint compliance when training the models.'],
+      steps: ['waypoint'],
+    },
+  ],
+  flow: {
+    title: 'The planning problem',
+    steps: [
+      { id: 'waypoint', label: 'Waypoints', note: 'waypoint compliance' },
+      { id: 'obstacle', label: 'Dynamic obstacles', note: 'avoided in real time' },
+      { id: 'path', label: 'Planned path', note: 'synthetic flight data from the simulation' },
+    ],
+  },
+  links: [],
+  evidence: [],
+};
+
 const diffex: Project = {
   id: 'diffex',
-  study: 'Irregular spacing resolves into an even, ordered run.',
   name: 'Diffex',
   kind: 'Rust agent harness',
   role: 'Co-founder, Diffex (Luntraa Inc.)',
@@ -118,12 +276,40 @@ const diffex: Project = {
     '20% on SWE-bench Lite after one evolution cycle',
     '$50,000 in compute awarded through the Daytona Grid Startup Initiative',
   ],
-  details: [
-    'I architected a modular Rust harness with provider-agnostic model interfaces, typed execution traces, tool orchestration, persistent sessions, and replayable evaluations.',
-    'The evolution pipeline examines execution traces, attributes token and latency costs, and groups recurring failures.',
-    'It then proposes targeted harness changes and evaluates the candidates.',
-    'After one cycle, the harness reached 20% on SWE-bench Lite through automated trace diagnosis and harness optimization.',
+  contributions: [
+    {
+      id: 'harness',
+      label: 'Harness',
+      body: [
+        'I architected a modular Rust harness with provider-agnostic model interfaces, typed execution traces, tool orchestration, persistent sessions, and replayable evaluations.',
+      ],
+      steps: ['traces'],
+    },
+    {
+      id: 'evolution',
+      label: 'Evolution pipeline',
+      body: [
+        'The evolution pipeline examines execution traces, attributes token and latency costs, and groups recurring failures.',
+        'It then proposes targeted harness changes and evaluates the candidates.',
+      ],
+      steps: ['analysis', 'changes', 'validation'],
+    },
+    {
+      id: 'result',
+      label: 'Result',
+      body: ['After one cycle, the harness reached 20% on SWE-bench Lite through automated trace diagnosis and harness optimization.'],
+      steps: ['validation'],
+    },
   ],
+  flow: {
+    title: 'One evolution cycle',
+    steps: [
+      { id: 'traces', label: 'Execution traces', note: 'typed, replayable' },
+      { id: 'analysis', label: 'Cost and failure analysis', note: 'token and latency costs, recurring failures' },
+      { id: 'changes', label: 'Targeted harness changes', note: 'proposed from the analysis' },
+      { id: 'validation', label: 'Validation', note: 'candidate changes evaluated, replayable' },
+    ],
+  },
   links: [
     { label: 'Website', href: 'https://diffex.ai' },
     { label: 'White paper', href: 'https://diffex.ai/white-paper' },
@@ -131,48 +317,8 @@ const diffex: Project = {
   evidence: [],
 };
 
-const judi: Project = {
-  id: 'judi',
-  study: 'Spacing redistributes toward the middle while both ends stay fixed.',
-  name: 'Judi Health',
-  kind: 'Firecracker execution platform',
-  role: 'Backend Software Engineering Intern, Judi Health (formerly Capital Rx)',
-  dates: 'June 2026 to present, remote',
-  summary:
-    'I’m leading development of a new Firecracker microVM platform on AWS that gives engineers and coding agents isolated execution environments.',
-  figures: ['Pharmacy claim adjudication platform serving 5M+ contracted lives'],
-  details: [
-    'I designed a capacity-aware scheduler that places microVMs across EC2 hosts and manages their lifecycle.',
-    'I’m working with the platform VP toward broader deployment across engineering workflows.',
-    'I also develop backend services for a pharmacy claim adjudication platform serving 5M+ contracted lives.',
-    'For the claims pipeline, I built a Rust linter that checks type-safe function calls and integrated it into CI.',
-  ],
-  links: [],
-  evidence: [],
-};
-
-const rtx: Project = {
-  id: 'rtx',
-  study: 'A single arc sweeps along the surface from one end to the other.',
-  name: 'Purdue Data Mine / RTX',
-  kind: 'Aircraft trajectory research',
-  role: 'Machine Learning Researcher, Purdue Data Mine with RTX Corporation',
-  dates: 'August 2026 to present, remote',
-  summary:
-    'I’m developing an ML trajectory system for unmanned aircraft, with real-time obstacle avoidance in dynamic airspace.',
-  figures: ['Mentored by Raytheon engineers'],
-  details: [
-    'Raytheon engineers mentor the project’s work on mission-critical software.',
-    'I’m building a 3D simulation environment that uses path-planning algorithms to generate synthetic flight data.',
-    'The work considers safety, route efficiency, and waypoint compliance when training the models.',
-  ],
-  links: [],
-  evidence: [],
-};
-
 const uplate: Project = {
   id: 'uplate',
-  study: 'A slow swell rolls across the surface.',
   name: 'UPlate',
   kind: 'Campus dining and nutrition',
   role: 'Co-founder',
@@ -180,9 +326,21 @@ const uplate: Project = {
   summary:
     'I co-founded UPlate, built the Flutter app, and led a team of six engineers as it grew to 150+ daily active users.',
   figures: ['150+ daily active users', 'Six engineers led'],
-  details: [
-    'I managed partnerships and built the app end-to-end, including a multi-page onboarding flow that retains dietary-profile choices.',
-    'I also built a retrieval pipeline that splits nutritional data into semantic chunks and supplies relevant context to Google’s Gemini API.',
+  contributions: [
+    {
+      id: 'app',
+      label: 'Flutter app and onboarding',
+      body: [
+        'I managed partnerships and built the app end-to-end, including a multi-page onboarding flow that retains dietary-profile choices.',
+      ],
+    },
+    {
+      id: 'retrieval',
+      label: 'Nutrition retrieval for Gemini',
+      body: [
+        'I also built a retrieval pipeline that splits nutritional data into semantic chunks and supplies relevant context to Google’s Gemini API.',
+      ],
+    },
   ],
   links: [
     { label: 'Website', href: 'https://jefft72.github.io/UPlate/' },
@@ -213,16 +371,19 @@ const uplate: Project = {
   ],
 };
 
-/** Ordered as the page presents them: the two hackathon wins first, then the rest. */
-export const projects: Project[] = [animalabs, opencraft, diffex, judi, rtx, uplate];
+/** Ordered as the page presents them: the two hackathon wins, the two experience roles, the two ventures. */
+export const projects: Project[] = [animalabs, opencraft, judi, rtx, diffex, uplate];
 
-export const projectById: Record<ProjectId, Project> = { animalabs, opencraft, diffex, judi, rtx, uplate };
+export const projectById: Record<ProjectId, Project> = { animalabs, opencraft, judi, rtx, diffex, uplate };
 
 /** The two entries with an award, in page order. */
-export const hackathonProjects: Project[] = projects.filter((project) => project.award !== undefined);
+export const hackathonProjects: Project[] = [animalabs, opencraft];
 
-/** The remaining four, in page order. */
-export const otherProjects: Project[] = projects.filter((project) => project.award === undefined);
+/** The internship and the research position, in page order. */
+export const experienceProjects: Project[] = [judi, rtx];
+
+/** The two co-founded companies, in page order. */
+export const ventureProjects: Project[] = [diffex, uplate];
 
 export const experience: ExperienceEntry[] = [
   {

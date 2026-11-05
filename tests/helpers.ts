@@ -41,12 +41,45 @@ export function article(page: Page, id: string): Locator {
   return page.locator(`article[data-testid="project-${id}"]`);
 }
 
-export function detailsButton(page: Page, id: string): Locator {
-  return page.locator(`button[data-testid="details-${id}"]`);
+export function chapter(page: Page, id: string): Locator {
+  return page.locator(`section[data-testid="chapter-${id}"]`);
 }
 
-export function detailsDialog(page: Page): Locator {
-  return page.locator('dialog[data-testid="project-details"]');
+export function contributionTab(page: Page, project: string, id: string): Locator {
+  return page.locator(`button[data-testid="contribution-${project}-${id}"]`);
+}
+
+export function contributionPanel(page: Page, project: string): Locator {
+  return page.locator(`[data-testid="contribution-panel-${project}"]`);
+}
+
+export function flowStep(page: Page, project: string, id: string): Locator {
+  return page.locator(`[data-testid="flow-step-${project}-${id}"]`);
+}
+
+/** The height of the opening, which is also the scroll distance of the handoff. */
+export function openingHeight(page: Page): Promise<number> {
+  return page.evaluate(() => document.getElementById('opening')?.offsetHeight ?? 0);
+}
+
+export async function scrollTo(page: Page, top: number): Promise<void> {
+  await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), top);
+}
+
+/** WCAG contrast ratio between two CSS rgb()/rgba() colours; an alpha below 1 is treated as opaque for a conservative check. */
+export function contrastRatio(foreground: string, background: string): number {
+  const channel = (value: number) => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const luminance = (color: string) => {
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!match) throw new Error(`unparsable colour ${color}`);
+    return 0.2126 * channel(Number(match[1])) + 0.7152 * channel(Number(match[2])) + 0.0722 * channel(Number(match[3]));
+  };
+  const a = luminance(foreground);
+  const b = luminance(background);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
 /** Skips the current test unless it runs in the named project. */

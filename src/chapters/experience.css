@@ -1,0 +1,369 @@
+/* 02 / Experience: the one light surface. The chapter title gets a tall band
+   of air, then each role is a long-form article: a narrow employer rail on
+   the left (sticky on desktop) beside a wide reading field whose typography
+   and one factual drawing carry the weight. Hairlines in --rule only; no
+   boxes around articles. */
+
+.experience {
+  padding-bottom: clamp(112px, 14vh, 208px);
+}
+
+/* Air between EXPERIENCE and the first article. */
+.experience__articles {
+  padding-top: clamp(160px, 34vh, 400px);
+}
+
+/* Article: rail (a third) beside the field (two thirds), like a narrow strip
+   beside an expansive text field. */
+.experience__article {
+  display: grid;
+  grid-template-columns: minmax(200px, 4fr) minmax(0, 8fr);
+  column-gap: clamp(32px, 4.5vw, 64px);
+  align-items: start;
+  padding-top: 40px;
+  border-top: 1px solid var(--rule);
+}
+.experience__article + .experience__article {
+  margin-top: 160px;
+}
+
+/* Rail: the employer heading stacked large, with the matching facts beneath. */
+.experience__rail {
+  min-width: 0;
+}
+.experience__facts {
+  margin-top: 32px;
+  max-width: 46ch;
+}
+.experience__fact {
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+}
+.experience__fact dt {
+  margin-bottom: 4px;
+}
+.experience__fact dd {
+  font: 400 var(--body-size) / 1.45 var(--text);
+  color: var(--paper);
+}
+
+/* Field: the lead and the drawing use the full width; running text keeps a
+   reading measure, with a margin column for figures and the legend. */
+.experience__field {
+  min-width: 0;
+}
+.experience__header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 24px;
+}
+.experience__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  font: 500 var(--body-size) / 1.45 var(--text);
+  color: var(--paper);
+}
+.experience__dates {
+  font-weight: 400;
+  color: var(--paper-dim);
+}
+.experience__summary {
+  max-width: 60ch;
+  margin-top: 8px;
+}
+
+.experience__figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 40px;
+}
+.experience__figure {
+  max-width: 34ch;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  font: 500 var(--lead-size) / 1.35 var(--text);
+  color: var(--paper);
+}
+
+/* Scope: the ownership blocks run down the reading column; a figure in the
+   margin aligns with its block through subgridded rows. */
+.experience__scope {
+  display: grid;
+  grid-template-columns: minmax(0, 60ch) minmax(180px, 1fr);
+  column-gap: 48px;
+  row-gap: 32px;
+  align-items: start;
+  margin-top: 64px;
+}
+.experience__scope .blocks {
+  grid-column: 1;
+  grid-row: 1 / span var(--rows, 1);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: subgrid;
+}
+.experience__scope .block {
+  min-width: 0;
+}
+.experience__figures--margin {
+  grid-column: 2;
+  grid-row: var(--figure-row, 1);
+  display: block;
+}
+.experience__figures--margin .experience__figure {
+  max-width: none;
+}
+
+.experience__evidence {
+  margin-top: 64px;
+  max-width: 60ch;
+}
+.experience__links {
+  margin-top: 40px;
+}
+
+/* Schematic: three named boxes joined by arrows, scoped as an illustration. */
+.schematic {
+  margin: 56px 0 0;
+}
+.schematic__title {
+  display: block;
+  margin-bottom: 16px;
+}
+.schematic__nodes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 48px;
+  align-items: stretch;
+}
+.schematic__node {
+  position: relative;
+  min-height: 112px;
+  padding: 16px 18px 18px;
+  border: 1px solid var(--rule-strong);
+  color: var(--paper);
+}
+.schematic__node[data-step='hosts'] {
+  border-style: double;
+  border-width: 4px;
+  padding: 13px 15px 15px;
+}
+.schematic__node[data-step='microvm'] {
+  box-shadow: inset 0 0 0 4px var(--field), inset 0 0 0 5px var(--rule-strong);
+}
+.schematic__node + .schematic__node::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  width: 48px;
+  margin-right: 1px;
+  border-top: 1px solid var(--rule-strong);
+}
+.schematic__node + .schematic__node[data-step='hosts']::before {
+  margin-right: 4px;
+}
+.schematic__node + .schematic__node::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  width: 7px;
+  height: 7px;
+  margin: -4px 1px 0 0;
+  border-top: 1.5px solid var(--paper);
+  border-right: 1.5px solid var(--paper);
+  transform: rotate(45deg);
+}
+.schematic__node + .schematic__node[data-step='hosts']::after {
+  margin-right: 4px;
+}
+.schematic__label {
+  display: block;
+  font: 600 var(--body-size) / 1.3 var(--text);
+}
+.schematic__note {
+  display: block;
+  margin-top: 6px;
+  font: 400 var(--small-size) / 1.35 var(--text);
+  color: var(--paper-dim);
+}
+
+/* Diagram: the SVG keeps the reading measure; the legend sits in the margin. */
+.diagram {
+  margin: 56px 0 0;
+}
+.diagram__title {
+  display: block;
+  margin-bottom: 16px;
+}
+.diagram__layout {
+  display: grid;
+  grid-template-columns: minmax(0, 60ch) minmax(180px, 1fr);
+  column-gap: 48px;
+  align-items: start;
+}
+.diagram__svg {
+  width: 100%;
+  height: auto;
+  color: var(--paper);
+  overflow: visible;
+}
+.diagram__text {
+  font: 500 15px / 1 var(--text);
+  letter-spacing: 0.01em;
+  fill: currentColor;
+}
+.diagram__text--dim {
+  fill: var(--paper-dim);
+}
+.diagram__legend {
+  display: grid;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+.diagram__key {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: start;
+  color: var(--paper);
+}
+.diagram__swatch {
+  margin-top: 1px;
+}
+.diagram__key-text {
+  display: block;
+  min-width: 0;
+}
+.diagram__key-label {
+  display: block;
+  font: 600 var(--body-size) / 1.3 var(--text);
+}
+.diagram__key-note {
+  display: block;
+  margin-top: 2px;
+  font: 400 var(--small-size) / 1.35 var(--text);
+  color: var(--paper-dim);
+}
+
+/* Desktop only, and only when the viewport is tall enough for the rail to
+   fit beneath the header: the employer rail stays put while the field reads. */
+@media (min-width: 768px) and (min-height: 640px) {
+  .experience__rail {
+    position: sticky;
+    top: calc(var(--header-clearance) + 16px);
+  }
+}
+
+/* Narrow desktops and tablets: keep the rail, drop the margin column so the
+   reading measure stays comfortable; figures and the legend follow their content. */
+@media (max-width: 1099px) {
+  .experience__scope,
+  .diagram__layout {
+    display: block;
+  }
+  .experience__scope .blocks {
+    display: grid;
+    grid-template-rows: none;
+    row-gap: 32px;
+  }
+  .experience__figures--margin {
+    margin-top: 32px;
+    max-width: 60ch;
+  }
+  .diagram__legend {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px 24px;
+    margin-top: 20px;
+  }
+  .schematic__nodes {
+    column-gap: 36px;
+  }
+  .schematic__node + .schematic__node::before {
+    width: 36px;
+  }
+}
+
+/* Mobile: one column. Rail above field, drawings scale to the column, the
+   schematic stacks with arrows pointing down. */
+@media (max-width: 767px) {
+  .experience {
+    padding-bottom: 112px;
+  }
+  .experience__articles {
+    padding-top: 96px;
+  }
+  .experience__article {
+    display: block;
+    padding-top: 32px;
+  }
+  .experience__article + .experience__article {
+    margin-top: 96px;
+  }
+  .experience__facts {
+    margin-top: 24px;
+  }
+  .experience__field {
+    margin-top: 48px;
+  }
+  .experience__header {
+    gap: 20px;
+  }
+  .experience__scope {
+    margin-top: 48px;
+  }
+  .experience__scope .blocks {
+    row-gap: 24px;
+  }
+  .experience__figures--margin {
+    margin-top: 24px;
+  }
+  .schematic,
+  .diagram {
+    margin-top: 40px;
+  }
+  .schematic__nodes {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 40px;
+  }
+  .schematic__node {
+    min-height: 0;
+  }
+  .schematic__node + .schematic__node::before {
+    top: auto;
+    right: auto;
+    bottom: 100%;
+    left: 50%;
+    width: 0;
+    height: 40px;
+    margin: 0 0 1px;
+    border-top: 0;
+    border-left: 1px solid var(--rule-strong);
+  }
+  .schematic__node + .schematic__node[data-step='hosts']::before {
+    margin: 0 0 4px;
+  }
+  .schematic__node + .schematic__node::after {
+    top: auto;
+    right: auto;
+    bottom: 100%;
+    left: 50%;
+    margin: 0 0 1px -4px;
+    transform: rotate(135deg);
+  }
+  .schematic__node + .schematic__node[data-step='hosts']::after {
+    margin: 0 0 4px -4px;
+  }
+  .diagram__text {
+    font-size: 22px;
+  }
+  .diagram__legend {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    margin-top: 16px;
+  }
+}

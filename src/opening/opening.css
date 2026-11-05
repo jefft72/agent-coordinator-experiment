@@ -1,7 +1,7 @@
 /* Header: small functional navigation, fixed, no containers. The field colour
    runs solid behind the text line and fades out just below it, so content
-   scrolling underneath stays legible without a visible bar; the artwork keeps
-   the top of the opening quiet, so the fade never cuts into it. */
+   scrolling underneath stays legible without a visible bar. The colour follows
+   the zone under the header, so it reads as part of each chapter's surface. */
 .site-header {
   position: fixed;
   left: 0;
@@ -13,11 +13,18 @@
   justify-content: space-between;
   padding: 24px var(--gutter) 0;
   height: 84px;
-  background: linear-gradient(to bottom, var(--field) 0, var(--field) 62px, transparent 84px);
+  color: var(--zone-paper);
+  background-color: var(--zone-field);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 62px, transparent 84px);
+  mask-image: linear-gradient(to bottom, #000 0, #000 62px, transparent 84px);
+  transition: background-color 320ms var(--ease-out), color 320ms var(--ease-out);
   pointer-events: none;
 }
 .site-header > * {
   pointer-events: auto;
+}
+.site-header .label {
+  color: inherit;
 }
 .site-header__home {
   text-decoration: none;
@@ -31,12 +38,20 @@
   display: inline-block;
   line-height: 38px;
   text-decoration: none;
-  color: var(--paper-dim);
-  transition: color 240ms var(--ease-out);
+  color: var(--zone-paper-dim);
+  border-bottom: 1px solid transparent;
+  transition: color 240ms var(--ease-out), border-color 240ms var(--ease-out);
 }
 .site-nav__link:hover,
 .site-nav__link:focus-visible {
-  color: var(--paper);
+  color: var(--zone-paper);
+}
+.site-nav__link[aria-current='true'] {
+  color: var(--zone-paper);
+  border-bottom-color: currentColor;
+}
+.site-header :focus-visible {
+  box-shadow: 0 0 0 2px var(--zone-field), 0 0 0 4px var(--zone-paper);
 }
 
 /* Stacking, explicitly: the fixed scene is a sibling of the page at z-index 0,
@@ -47,11 +62,24 @@
   z-index: 1;
 }
 
-/* Opening region. Transparent, so the scene shows through only here. Height
-   leaves the Work heading and first row inside the first viewport. */
+/* Opening region. Transparent, so the scene shows through only here. Its
+   height leaves the first chapter's label row inside the first viewport, so
+   the next chapter announces itself before anyone scrolls. */
 .opening {
   position: relative;
-  height: max(560px, calc(100svh - 176px));
+  z-index: 0;
+  height: max(560px, calc(100svh - var(--announce)));
+}
+
+/* Desktop handoff: the opening pins while the first chapter rises over it. */
+@media (min-width: 768px) and (min-height: 600px) {
+  .opening {
+    position: sticky;
+    top: 0;
+  }
+  html[data-handoff='done'] .opening {
+    visibility: hidden;
+  }
 }
 
 .scene {
@@ -87,6 +115,11 @@
 .scene[data-render-state='ready'] .scene__fallback {
   opacity: 0;
 }
+/* The static composition does not fold, so it steps aside with the chapter instead. */
+.scene:not([data-render-state='ready']) .scene__fallback {
+  transform: translateX(calc(var(--fold, 0) * 24vw));
+  opacity: calc(1 - var(--fold, 0));
+}
 
 .opening__identity {
   position: absolute;
@@ -120,17 +153,32 @@
   display: block;
 }
 
+/* The name and identity recede as the chapter rises: the name lifts and
+   shrinks from its baseline, the lines fade last. Scroll-controlled, so it is
+   switched off under reduced motion and on phones, where the opening scrolls. */
+@media (min-width: 768px) and (min-height: 600px) and (prefers-reduced-motion: no-preference) {
+  .opening__name {
+    transform-origin: left bottom;
+    transform: translateY(calc(var(--handoff, 0) * -34vh)) scale(calc(1 - var(--handoff, 0) * 0.28));
+    opacity: calc(1 - max(0, (var(--handoff, 0) - 0.55)) / 0.3);
+  }
+  .opening__identity {
+    opacity: calc(1 - max(0, (var(--handoff, 0) - 0.5)) / 0.3);
+  }
+}
+
 @media (max-width: 767px) {
   .site-header {
     padding-top: 16px;
     height: 66px;
-    background: linear-gradient(to bottom, var(--field) 0, var(--field) 54px, transparent 66px);
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 54px, transparent 66px);
+    mask-image: linear-gradient(to bottom, #000 0, #000 54px, transparent 66px);
   }
   .site-nav__list {
-    gap: 16px;
+    gap: 14px;
   }
   .opening {
-    height: max(520px, calc(100svh - 150px));
+    height: max(520px, calc(100svh - var(--announce)));
   }
   .opening__identity {
     top: 282px;
@@ -149,26 +197,33 @@
   :root {
     --name-size: 82px;
   }
-  .site-nav__list {
-    gap: 12px;
-  }
   /* The smaller name ends sooner, so the identity lines follow it and stay clear of the fold. */
   .opening__identity {
     top: 250px;
   }
 }
 
-/* Every section after the opening paints a solid field, so the Work heading
-   rises over the folding sculpture as a clean matched mask rather than a fade.
-   Scoped to sections: the details dialog also lives inside the page and must
-   keep its own light surface and the native top-layer positioning. */
-.page > section:not(.opening) {
-  position: relative;
-  background: var(--field);
-}
-
 @media (max-width: 767px) {
   .site-header__home {
     display: none;
+  }
+}
+
+/* Narrow phones: five destinations do not fit on one line, so the list wraps
+   to two short rows inside a slightly taller header. */
+@media (max-width: 479px) {
+  .site-header {
+    height: 78px;
+    padding-top: 12px;
+    -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 64px, transparent 78px);
+    mask-image: linear-gradient(to bottom, #000 0, #000 64px, transparent 78px);
+  }
+  .site-nav__list {
+    flex-wrap: wrap;
+    max-width: 100%;
+    gap: 0 14px;
+  }
+  .site-nav__link {
+    line-height: 26px;
   }
 }

@@ -36,9 +36,9 @@ export interface SampleParams {
   reveal: number;
   /** 0 = rest pose, 1 = folded toward the right edge. */
   fold: number;
-  /** Small shift along the sweep as a fraction of its arc length (focus modulations). */
+  /** Small shift along the sweep as a fraction of its arc length. */
   uOffset?: number;
-  /** Extra roll about the blade's height axis in radians (pointer and focus). */
+  /** Extra roll about the blade's height axis in radians (pointer response). */
   rollOffset?: number;
   /** Extra displacement along the blade's face normal in world units. */
   normalOffset?: number;
@@ -681,13 +681,6 @@ export function projectToScreen(
   out.depth = depth;
   return out;
 }
-
-/**
- * Camera for the project stage in the details dialog: close on the desktop
- * crest, where the fold turns back around its pocket, so the per-project
- * deformation reads at the scale of individual plates.
- */
-export const STAGE_CAMERA: CameraPose = { position: [2.5, 1.8, 6.1], target: [4.3, 0.9, -1.6], fov: 30 };
 
 /** Blade count the scene uses for each layout. */
 export function bladeCount(compact: boolean): number {

@@ -2,8 +2,6 @@
 import { test, expect } from '@playwright/test';
 import {
   collectConsoleErrors,
-  detailsButton,
-  detailsDialog,
   expectCleanLog,
   gotoAndSettle,
   scrollThroughPage,
@@ -31,10 +29,11 @@ test.describe('project page base', () => {
 
     await scrollThroughPage(page);
 
-    // Evidence images only mount inside the details dialog.
-    await detailsButton(page, 'animalabs').scrollIntoViewIfNeeded();
-    await detailsButton(page, 'animalabs').click();
-    await expect(detailsDialog(page)).toBeVisible();
+    // The gallery shows one screenshot at a time; step through it so every image is requested.
+    const next = page.locator('button[data-testid="gallery-uplate-next"]');
+    await next.scrollIntoViewIfNeeded();
+    await next.click();
+    await next.click();
 
     const images = page.locator('img');
     const imageCount = await images.count();
@@ -42,15 +41,15 @@ test.describe('project page base', () => {
     for (let i = 0; i < imageCount; i += 1) {
       const image = images.nth(i);
       const src = await image.getAttribute('src');
+      expect(src ?? '', `image src ${src} should start with ${BASE_PATH}`).toMatch(new RegExp(`^(?:https?://[^/]+)?${BASE_PATH.replace(/\//g, '\\/')}`));
+      if (await image.isHidden()) continue;
       await image.scrollIntoViewIfNeeded().catch(() => undefined);
       await expect
         .poll(() => image.evaluate((node) => (node as HTMLImageElement).naturalWidth), {
           message: `image ${src} should decode`,
         })
         .toBeGreaterThan(0);
-      expect(src ?? '', `image src ${src} should start with ${BASE_PATH}`).toMatch(new RegExp(`^(?:https?://[^/]+)?${BASE_PATH.replace(/\//g, '\\/')}`));
     }
-    await page.keyboard.press('Escape');
 
     const fonts = await page.evaluate(async () => {
       const faces: FontFace[] = [];

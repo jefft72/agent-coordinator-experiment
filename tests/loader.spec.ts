@@ -82,7 +82,7 @@ test.describe('loader', () => {
     await waitForRenderState(page, ['failed']);
     await expect(scene(page).locator('[data-testid="scene-fallback"]')).toBeVisible();
     await expect(page.locator('h1#name')).toBeVisible();
-    await expectInViewport(page.locator('h2#work-heading'));
+    await expectInViewport(page.locator('[data-testid="chapter-label-hackathons"]'));
   });
 
   test('a returning visit bypasses the intro', async ({ page }) => {

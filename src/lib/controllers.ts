@@ -1,4 +1,4 @@
-import { FOLD_SCROLL_VH, motion } from '../scene/motion';
+import { FOLD_START, motion } from '../scene/motion';
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -8,14 +8,23 @@ function easeInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
+export type HandoffState = 'rest' | 'moving' | 'done';
+
 /**
- * Native scroll drives the fold; pointer position drives the local response.
- * Both write to the motion store and never cause React renders. The scene is
- * switched off once the opening has fully scrolled away.
+ * Native scroll drives the opening handoff; pointer position drives the local
+ * response. Both write to the motion store and never cause React renders.
+ *
+ * The handoff is measured against the opening's height: the first chapter
+ * rises over the pinned opening at scroll speed, so the opening is covered
+ * exactly when the page has scrolled its height. Over that distance the
+ * name recedes (CSS, from --handoff), and over its last part the sculpture
+ * folds out of the reading plane. Once covered, the scene stops rendering
+ * and the opening is hidden until the reader scrolls back.
  */
 export function installMotionControllers(): () => void {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const finePointer = window.matchMedia('(pointer: fine)');
+  const root = document.documentElement;
   motion.reducedMotion = reduced.matches;
 
   let lastActive = motion.active;
@@ -25,12 +34,23 @@ export function installMotionControllers(): () => void {
     window.dispatchEvent(new CustomEvent('jt:scene-active', { detail: motion.active }));
   };
 
+  let lastState: HandoffState | null = null;
   const onScroll = () => {
     const vh = window.innerHeight || 1;
     const y = window.scrollY || 0;
-    motion.fold = easeInOut(clamp01(y / (vh * FOLD_SCROLL_VH)));
-    motion.active = y < vh * 1.15;
-    document.documentElement.style.setProperty('--fold', motion.fold.toFixed(4));
+    const opening = document.getElementById('opening');
+    const end = Math.max(1, opening?.offsetHeight ?? vh);
+    const progress = clamp01(y / end);
+    const fold = motion.reducedMotion ? 0 : easeInOut(clamp01((progress - FOLD_START) / (1 - FOLD_START)));
+    motion.fold = fold;
+    motion.active = progress < 1;
+    root.style.setProperty('--handoff', progress.toFixed(4));
+    root.style.setProperty('--fold', fold.toFixed(4));
+    const state: HandoffState = progress <= 0 ? 'rest' : progress < 1 ? 'moving' : 'done';
+    if (state !== lastState) {
+      lastState = state;
+      root.dataset.handoff = state;
+    }
     publishActive();
   };
 
@@ -46,6 +66,7 @@ export function installMotionControllers(): () => void {
   const onReduced = (event: MediaQueryListEvent) => {
     motion.reducedMotion = event.matches;
     if (event.matches) motion.pointer.active = false;
+    onScroll();
   };
   const onVisibility = () => {
     if (document.hidden) {
@@ -73,5 +94,8 @@ export function installMotionControllers(): () => void {
     window.removeEventListener('blur', onPointerLeave);
     document.removeEventListener('visibilitychange', onVisibility);
     reduced.removeEventListener('change', onReduced);
+    delete root.dataset.handoff;
+    root.style.removeProperty('--handoff');
+    root.style.removeProperty('--fold');
   };
 }

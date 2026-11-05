@@ -4,21 +4,23 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
+  chapters,
   education,
   experience,
+  experienceProjects,
   hackathonProjects,
   identity,
   nav,
-  otherProjects,
   projectById,
   projects,
   skills,
+  ventureProjects,
 } from './site';
 import type { ProjectId } from './types';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../../public/', import.meta.url));
 
-const ORDER: ProjectId[] = ['animalabs', 'opencraft', 'diffex', 'judi', 'rtx', 'uplate'];
+const ORDER: ProjectId[] = ['animalabs', 'opencraft', 'judi', 'rtx', 'diffex', 'uplate'];
 
 /** Every destination the supervisor verified. Nothing else may be linked. */
 const VERIFIED_LINKS = new Set([
@@ -40,10 +42,10 @@ const VERIFIED_LINKS = new Set([
 const FORBIDDEN: Array<{ label: string; pattern: RegExp }> = [
   { label: 'graduation date', pattern: /\bgraduat(?:ion|ing)\b|\bexpected\b/i },
   { label: 'phone number', pattern: /(?:\+1[ .-]?)?\(?\b\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b/ },
-  { label: 'em dash', pattern: /\u2014/ },
+  { label: 'em dash', pattern: /—/ },
   { label: 'overall event win', pattern: /\b(grand prize|overall winner|first place|1st place|champion\w*)\b/i },
   { label: 'straight apostrophe (the module uses U+2019 throughout)', pattern: /'/ },
-  { label: 'editorial label', pattern: /\b(visible summary|illustrative)\b/i },
+  { label: 'editorial label', pattern: /\b(visible summary|illustrative|abstract study)\b/i },
 ];
 
 function collectStrings(value: unknown, out: string[] = []): string[] {
@@ -60,16 +62,20 @@ function collectStrings(value: unknown, out: string[] = []): string[] {
 const everyString = collectStrings({
   identity,
   nav,
+  chapters,
   projects,
   projectById,
   hackathonProjects,
-  otherProjects,
+  experienceProjects,
+  ventureProjects,
   experience,
   education,
   skills,
 });
 
-const text = (id: ProjectId) => [projectById[id].summary, ...projectById[id].figures, ...projectById[id].details].join(' ');
+/** All the prose a project puts on the page: summary, figures, and every contribution sentence. */
+const text = (id: ProjectId) =>
+  [projectById[id].summary, ...projectById[id].figures, ...projectById[id].contributions.flatMap((c) => c.body)].join(' ');
 
 describe('project order', () => {
   it('lists the six projects in page order with matching ids', () => {
@@ -81,21 +87,36 @@ describe('project order', () => {
     }
   });
 
-  it('splits into the two hackathon entries followed by the other four', () => {
+  it('groups the projects into the three chapters in page order', () => {
     expect(hackathonProjects.map((project) => project.id)).toEqual(['animalabs', 'opencraft']);
-    expect(otherProjects.map((project) => project.id)).toEqual(['diffex', 'judi', 'rtx', 'uplate']);
-    expect([...hackathonProjects, ...otherProjects]).toEqual(projects);
+    expect(experienceProjects.map((project) => project.id)).toEqual(['judi', 'rtx']);
+    expect(ventureProjects.map((project) => project.id)).toEqual(['diffex', 'uplate']);
+    expect([...hackathonProjects, ...experienceProjects, ...ventureProjects]).toEqual(projects);
+    expect(hackathonProjects.every((project) => project.award !== undefined)).toBe(true);
+    expect([...experienceProjects, ...ventureProjects].every((project) => project.award === undefined)).toBe(true);
+  });
+
+  it('names the four chapters in order with numbered labels that match the navigation', () => {
+    expect(chapters.map((chapter) => [chapter.id, chapter.number, chapter.title])).toEqual([
+      ['hackathons', '01', 'Hackathons'],
+      ['experience', '02', 'Experience'],
+      ['ventures', '03', 'Ventures'],
+      ['about', '04', 'About'],
+    ]);
+    for (const chapter of chapters) {
+      expect(nav.map((item) => item.href)).toContain(`#${chapter.id}`);
+    }
   });
 });
 
 describe('project fields', () => {
-  it('gives every project a name, kind, role, summary, and at least two detail sentences', () => {
+  it('gives every project a name, kind, role, summary, and at least two contributions', () => {
     for (const project of projects) {
       expect(project.name.trim(), project.id).not.toBe('');
       expect(project.kind.trim(), project.id).not.toBe('');
       expect(project.role.trim(), project.id).not.toBe('');
       expect(project.summary.trim(), project.id).not.toBe('');
-      expect(project.details.length, project.id).toBeGreaterThanOrEqual(2);
+      expect(project.contributions.length, project.id).toBeGreaterThanOrEqual(2);
     }
   });
 
@@ -103,17 +124,17 @@ describe('project fields', () => {
     expect(projects.map((project) => project.name)).toEqual([
       'AnimaLabs',
       'OpenCraft',
-      'Diffex',
       'Judi Health',
       'Purdue Data Mine / RTX',
+      'Diffex',
       'UPlate',
     ]);
     expect(projects.map((project) => project.kind)).toEqual([
       'Research agents and simulation reports',
       'Multi-agent coordination in Minecraft',
-      'Rust agent harness',
       'Firecracker execution platform',
       'Aircraft trajectory research',
+      'Rust agent harness',
       'Campus dining and nutrition',
     ]);
   });
@@ -132,7 +153,7 @@ describe('project fields', () => {
     expect(projectById.opencraft.role).toBe('HackPrinceton Spring 2026 team project, coordination backend');
     expect(projectById.opencraft.dates).toBeUndefined();
     for (const project of projects) {
-      if (project.dates) expect(project.dates).not.toMatch(/[\u2013\u2014]/);
+      if (project.dates) expect(project.dates).not.toMatch(/[–—]/);
     }
   });
 
@@ -142,11 +163,88 @@ describe('project fields', () => {
     }
   });
 
-  it('keeps each detail to one complete sentence', () => {
+  it('keeps each contribution sentence to one complete sentence', () => {
     for (const project of projects) {
-      for (const detail of project.details) {
-        expect(detail, project.id).toMatch(/^[A-Z].*\.$/);
-        expect(detail.match(/\. [A-Z]/g) ?? [], detail).toHaveLength(0);
+      for (const contribution of project.contributions) {
+        expect(contribution.id, project.id).toMatch(/^[a-z]+$/);
+        expect(contribution.label.trim(), `${project.id} ${contribution.id}`).not.toBe('');
+        expect(contribution.body.length, `${project.id} ${contribution.id}`).toBeGreaterThan(0);
+        for (const sentence of contribution.body) {
+          expect(sentence, project.id).toMatch(/^[A-Z].*\.$/);
+          expect(sentence.match(/\. [A-Z]/g) ?? [], sentence).toHaveLength(0);
+        }
+      }
+    }
+  });
+
+  it('gives each project distinct contribution ids and labels', () => {
+    for (const project of projects) {
+      const ids = project.contributions.map((c) => c.id);
+      const labels = project.contributions.map((c) => c.label);
+      expect(new Set(ids).size, project.id).toBe(ids.length);
+      expect(new Set(labels).size, project.id).toBe(labels.length);
+    }
+  });
+
+  it('uses the three labelled controls the brief names for each hackathon', () => {
+    expect(projectById.animalabs.contributions.map((c) => c.label)).toEqual(['Research agent', 'Analyst agent', 'Reports']);
+    expect(projectById.opencraft.contributions.map((c) => c.label)).toEqual(['Shared jobs', 'Agent memory', 'Integration testing']);
+  });
+});
+
+describe('flows', () => {
+  it('only reference steps that exist, and every step is reachable from a contribution', () => {
+    for (const project of projects) {
+      const flow = project.flow;
+      const stepIds = new Set(flow?.steps.map((step) => step.id) ?? []);
+      expect(stepIds.size, project.id).toBe(flow?.steps.length ?? 0);
+      const referenced = new Set<string>();
+      for (const contribution of project.contributions) {
+        for (const step of contribution.steps ?? []) {
+          expect(stepIds.has(step), `${project.id} ${contribution.id} references unknown step ${step}`).toBe(true);
+          referenced.add(step);
+        }
+      }
+      if (flow) {
+        expect(flow.title.trim(), project.id).not.toBe('');
+        expect([...stepIds].filter((id) => !referenced.has(id)), `${project.id} steps no contribution highlights`).toEqual([]);
+      }
+    }
+  });
+
+  it('name real concepts from the résumé rather than data', () => {
+    expect(projectById.animalabs.flow?.steps.map((step) => step.label)).toEqual([
+      'Europe PMC',
+      'Research agent',
+      'Simulation outputs',
+      'Analyst agent',
+      'LaTeX pipeline',
+    ]);
+    expect(projectById.opencraft.flow?.steps.map((step) => step.label)).toEqual([
+      'Minecraft agents',
+      'Supabase Postgres',
+      'Realtime',
+      'pgvector',
+      'Integration harness',
+    ]);
+    expect(projectById.diffex.flow?.steps.map((step) => step.label)).toEqual([
+      'Execution traces',
+      'Cost and failure analysis',
+      'Targeted harness changes',
+      'Validation',
+    ]);
+    expect(projectById.judi.flow?.steps.map((step) => step.label)).toEqual([
+      'Capacity-aware scheduler',
+      'EC2 hosts',
+      'Firecracker microVMs',
+    ]);
+    expect(projectById.rtx.flow?.steps.map((step) => step.label)).toEqual(['Waypoints', 'Dynamic obstacles', 'Planned path']);
+    expect(projectById.uplate.flow).toBeUndefined();
+    // Product names such as EC2 and 3D are fine; counts and measurements are not, except the report tally the résumé states.
+    for (const project of projects) {
+      for (const step of project.flow?.steps ?? []) {
+        if (project.id === 'animalabs' && step.id === 'report') continue;
+        expect(`${step.label} ${step.note ?? ''}`, `${project.id} ${step.id}`).not.toMatch(/(?<![A-Z])\d+(?:[.,]\d+)?(?:%|\+|M\b|k\b)?(?![A-Za-z])/);
       }
     }
   });
@@ -187,6 +285,11 @@ describe('awards', () => {
       expect(hrefs, project.id).toContain(project.award?.proof.href);
     }
   });
+
+  it('give both hackathons an explicit Watch demo link', () => {
+    expect(projectById.animalabs.links.find((link) => link.label === 'Watch demo')?.href).toBe('https://www.youtube.com/watch?v=UBaKKoPopSg');
+    expect(projectById.opencraft.links.find((link) => link.label === 'Watch demo')?.href).toBe('https://www.youtube.com/watch?v=cbue_TqiOnI');
+  });
 });
 
 describe('links', () => {
@@ -212,6 +315,12 @@ describe('links', () => {
     ];
     expect(hrefs.some((href) => href?.includes('github.com'))).toBe(false);
     expect(hrefs).toContain('https://devpost.com/software/anima-labs');
+  });
+
+  it('keep the OpenCraft source and Devpost destinations', () => {
+    const hrefs = projectById.opencraft.links.map((link) => link.href);
+    expect(hrefs).toContain('https://github.com/MarcDasilva/OpenCraft');
+    expect(hrefs).toContain('https://devpost.com/software/opencraft');
   });
 
   it('give every link a label', () => {
@@ -293,9 +402,13 @@ describe('quantitative claims', () => {
     expect(diffex).not.toMatch(/(?:improved|increased|gained|boosted)(?: by)? 20%/i);
   });
 
-  it('attributes the 5M+ scale to the platform, not to Jeffrey', () => {
+  it('attributes the 5M+ scale to the platform, not to Jeffrey or the microVM system', () => {
     expect(text('judi')).not.toMatch(/I (?:built|serve|served|own) .*5M\+/i);
     expect(text('judi')).not.toMatch(/5M\+ (?:users|customers)/i);
+    for (const contribution of projectById.judi.contributions) {
+      if (contribution.id === 'claims') continue;
+      expect(contribution.body.join(' '), `${contribution.id} must not carry the 5M+ figure`).not.toContain('5M+');
+    }
   });
 
   it('keeps the hackathon and research figures free of numbers that are not in the résumé', () => {
@@ -304,6 +417,8 @@ describe('quantitative claims', () => {
     for (const figure of [...projectById.opencraft.figures, ...projectById.rtx.figures]) {
       expect(figure).not.toMatch(/\d/);
     }
+    expect(text('opencraft')).not.toMatch(/\d/);
+    expect(text('rtx')).not.toMatch(/\d(?!D)/);
   });
 });
 
@@ -343,6 +458,12 @@ describe('résumé coverage', () => {
   it('never claims clinical validation for AnimaLabs', () => {
     expect(text('animalabs')).not.toMatch(/\b(clinical|clinically|treatment|cure|patients?|medical(?:ly)? effective)\b/i);
   });
+
+  it('never describes the sculpture as a demonstration of any project', () => {
+    for (const value of everyString) {
+      expect(value, value).not.toMatch(/\b(sculpture|blade|study|pattern|phase|replay)\b/i);
+    }
+  });
 });
 
 describe('identity and navigation', () => {
@@ -363,10 +484,11 @@ describe('identity and navigation', () => {
     ]);
   });
 
-  it('exposes the four section anchors in order', () => {
+  it('exposes the five destinations in order', () => {
     expect(nav.map((item) => [item.label, item.href])).toEqual([
-      ['Work', '#work'],
       ['Hackathons', '#hackathons'],
+      ['Experience', '#experience'],
+      ['Ventures', '#ventures'],
       ['About', '#about'],
       ['Contact', '#contact'],
     ]);

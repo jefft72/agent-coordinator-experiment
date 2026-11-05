@@ -1,5 +1,3 @@
-import type { ProjectId } from '../content/types';
-
 /**
  * One shared motion state for the whole page.
  * The loader, the scroll controller, and the pointer listener write to it;
@@ -8,29 +6,27 @@ import type { ProjectId } from '../content/types';
 export interface MotionState {
   /** 0 = loader intro framing, 1 = settled opening framing. Driven by the loader. */
   reveal: number;
-  /** 0 = opening at rest, 1 = folded toward the right edge with Work in place. Driven by scroll. */
+  /** 0 = opening at rest, 1 = folded toward the right edge as the first chapter covers it. Driven by scroll. */
   fold: number;
   /** Pointer in normalized device coordinates, -1..1, active only while over the viewport. */
   pointer: { x: number; y: number; active: boolean };
-  /** Project the artwork is currently responding to, or null at rest. */
-  focus: ProjectId | null;
   /** Mirrors prefers-reduced-motion. The scene must not animate when true. */
   reducedMotion: boolean;
-  /** False once the opening has scrolled out of view; the scene stops rendering. */
+  /** False once the opening has been covered; the scene stops rendering until the reader returns. */
   active: boolean;
-  /** True while the project stage owns the only live renderer; the opening scene holds its frame. */
-  suspended: boolean;
 }
 
 export const motion: MotionState = {
   reveal: 0,
   fold: 0,
   pointer: { x: 0, y: 0, active: false },
-  focus: null,
   reducedMotion: false,
   active: true,
-  suspended: false,
 };
 
-/** Scroll distance, as a fraction of the viewport height, over which the fold completes. */
-export const FOLD_SCROLL_VH = 0.85;
+/**
+ * The handoff is the scroll distance over which the first chapter rises over
+ * the pinned opening: the opening's own height. The sculpture folds away over
+ * the last part of it, as a fraction of that distance.
+ */
+export const FOLD_START = 0.45;

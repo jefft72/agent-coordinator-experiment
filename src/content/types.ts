@@ -1,10 +1,12 @@
 /**
- * Content model shared by the opening, the work sequence, the record, and the tests.
+ * Content model shared by the opening, the chapters, and the tests.
  * Every string in `site.ts` is quoted or closely paraphrased from the supplied résumé copy.
  * No tagline, no graduation date, no phone number, no future award.
  */
 
-export type ProjectId = 'animalabs' | 'opencraft' | 'diffex' | 'judi' | 'rtx' | 'uplate';
+export type ProjectId = 'animalabs' | 'opencraft' | 'judi' | 'rtx' | 'diffex' | 'uplate';
+
+export type ChapterId = 'hackathons' | 'experience' | 'ventures' | 'about';
 
 export interface Link {
   label: string;
@@ -37,10 +39,34 @@ export interface Evidence {
   caption: string;
 }
 
+/** One step in a project's labelled flow or schematic. Named concepts only, never invented data. */
+export interface FlowStep {
+  id: string;
+  /** Short name of the step, for example "Europe PMC". */
+  label: string;
+  /** Short qualifier shown under the label, for example "searched through Apify". */
+  note?: string;
+}
+
+/**
+ * One part of Jeffrey's work on a project: a control label and the sentences
+ * it reveals. The hackathon spreads present these as tabs; the other
+ * chapters lay them out as adjacent blocks.
+ */
+export interface Contribution {
+  id: string;
+  /** Control label, for example "Research agent". */
+  label: string;
+  /** One or more complete sentences of what Jeffrey built, closely paraphrased from the résumé. */
+  body: string[];
+  /** Ids of the flow steps this contribution highlights. */
+  steps?: string[];
+}
+
 export interface Project {
   id: ProjectId;
   name: string;
-  /** Plain descriptor, for example "Rust agent harness". */
+  /** Plain descriptor, for example "Rust agent harness". Doubles as the visible lead where the brief asks for one. */
   kind: string;
   /** Organisation or event and role, one short line. */
   role: string;
@@ -50,10 +76,10 @@ export interface Project {
   summary: string;
   /** Short measurable facts scoped exactly as the résumé scopes them. */
   figures: string[];
-  /** Full technical explanation, several sentences, shown in details. */
-  details: string[];
-  /** One sentence describing the abstract stage pattern for this project. Never a product claim. */
-  study: string;
+  /** The labelled parts of Jeffrey's work. Every résumé sentence for the project lives here. */
+  contributions: Contribution[];
+  /** Optional labelled flow or schematic the contributions can highlight. */
+  flow?: { title: string; steps: FlowStep[] };
   /** Present only for the two hackathon wins. */
   award?: Award;
   links: Link[];
@@ -93,4 +119,11 @@ export interface Identity {
 export interface NavItem {
   label: string;
   href: `#${string}`;
+}
+
+export interface Chapter {
+  id: ChapterId;
+  /** Two-digit chapter number shown in the entry label, for example "01". */
+  number: string;
+  title: string;
 }

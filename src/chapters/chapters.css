@@ -1,0 +1,302 @@
+/* Chapter shell shared by Hackathons, Experience, Ventures, and About.
+   Each chapter is a solid surface that paints over the pinned opening; the
+   surface modifiers re-scope the colour tokens, so every existing rule for
+   paper, rules, and focus keeps working on plum, forest, light, and graphite. */
+
+.chapter {
+  position: relative;
+  z-index: 1;
+  background: var(--field);
+  color: var(--paper);
+  scroll-margin-top: var(--header-clearance);
+}
+
+.surface--plum {
+  --field: var(--plum);
+}
+.surface--forest {
+  --field: var(--forest);
+}
+.surface--quiet {
+  --field: var(--quiet);
+}
+.surface--light {
+  color-scheme: light;
+  --field: var(--paper-field);
+  --paper: var(--ink);
+  --paper-dim: var(--ink-dim);
+  --paper-faint: var(--ink-faint);
+  --rule: var(--ink-rule);
+  --rule-strong: var(--ink-rule-strong);
+  --focus: 0 0 0 2px var(--paper-field), 0 0 0 4px var(--ink);
+}
+.surface--light ::selection {
+  background: var(--ink);
+  color: var(--paper-field);
+}
+
+.chapter__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+/* Entry: the numbered label row, then the chapter title. The label row is
+   what shows at the bottom of the opening before the chapter rises. */
+.chapter__entry {
+  padding-top: 30px;
+}
+.chapter__label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--paper);
+}
+.chapter__label .label {
+  color: var(--paper);
+}
+.chapter__label-aside {
+  color: var(--paper-dim);
+}
+.chapter__title {
+  margin-top: 26px;
+  font: 900 var(--chapter-size) / 0.84 var(--display);
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  color: var(--paper);
+}
+
+/* Project titles and the large leads inside chapters. */
+.project__title {
+  margin: 0;
+  font: 900 var(--title-size) / 0.86 var(--display);
+  text-transform: uppercase;
+  letter-spacing: -0.005em;
+  color: var(--paper);
+}
+.project__lead {
+  margin: 0;
+  font: 900 var(--lead-size-xl) / 0.92 var(--display);
+  text-transform: uppercase;
+  color: var(--paper);
+}
+
+.label {
+  font: 500 var(--small-size) / 1.3 var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+}
+
+.body {
+  font: 400 var(--body-size) / 1.5 var(--text);
+  color: var(--paper);
+}
+.body p + p {
+  margin-top: 10px;
+}
+
+.summary {
+  font: 500 var(--lead-size) / 1.35 var(--text);
+  color: var(--paper);
+}
+
+/* Award block: event label, exact titles, proof link. Always on the solid surface. */
+.award__event {
+  color: var(--paper-dim);
+}
+.award__titles {
+  margin-top: 6px;
+}
+.award__titles li {
+  font: 600 20px / 1.25 var(--text);
+  color: var(--paper);
+}
+.award__titles li + li {
+  margin-top: 2px;
+}
+.award__titles .label {
+  color: var(--paper-dim);
+}
+
+/* Link rows: small uppercase links separated by space. */
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  font: 500 var(--small-size) / 1.3 var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.links a {
+  text-decoration-color: var(--rule-strong);
+}
+.links a:hover,
+.links a:focus-visible {
+  text-decoration-color: currentColor;
+}
+.link--strong {
+  font-weight: 600;
+  color: var(--paper);
+}
+
+/* Figures: real media at its real aspect ratio with a truthful caption. */
+.media {
+  margin: 0;
+}
+.media img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.media figcaption {
+  margin-top: 10px;
+  font: 400 var(--small-size) / 1.35 var(--text);
+  color: var(--paper-dim);
+}
+
+/* Contribution controls: a tablist that reveals one part of the work in a
+   reserved area. The buttons are text controls with a rule underneath; the
+   selected one is solid. */
+.contrib__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 28px;
+  border-bottom: 1px solid var(--rule);
+}
+.contrib__tab {
+  position: relative;
+  padding: 10px 0 12px;
+  margin-bottom: -1px;
+  font: 500 var(--small-size) / 1.3 var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  border-bottom: 2px solid transparent;
+  transition: color 200ms var(--ease-out), border-color 200ms var(--ease-out);
+}
+.contrib__tab:hover {
+  color: var(--paper);
+}
+.contrib__tab[aria-selected='true'] {
+  color: var(--paper);
+  border-bottom-color: var(--paper);
+}
+.contrib__panel {
+  padding-top: 18px;
+  min-height: 7.5em;
+}
+.contrib__panel[hidden] {
+  display: none;
+}
+
+/* Blocks: the same contributions as adjacent labelled paragraphs. */
+.blocks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px 40px;
+}
+.block__label {
+  margin: 0 0 8px;
+  font: 500 var(--small-size) / 1.3 var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+
+/* Flow: a labelled row of steps the selected contribution can highlight. */
+.flow {
+  margin: 0;
+}
+.flow__title {
+  margin-bottom: 12px;
+}
+.flow__steps {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 12px;
+  counter-reset: step;
+}
+.flow__step {
+  position: relative;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--rule-strong);
+  color: var(--paper-dim);
+  transition: color 200ms var(--ease-out), border-color 200ms var(--ease-out), opacity 200ms var(--ease-out);
+}
+.flow__step::before {
+  counter-increment: step;
+  content: counter(step, decimal-leading-zero);
+  display: block;
+  margin-bottom: 8px;
+  font: 500 var(--small-size) / 1 var(--text);
+  letter-spacing: 0.04em;
+  color: var(--paper-faint);
+}
+.flow__step-label {
+  display: block;
+  font: 600 var(--body-size) / 1.3 var(--text);
+  color: inherit;
+}
+.flow__step-note {
+  display: block;
+  margin-top: 4px;
+  font: 400 var(--small-size) / 1.35 var(--text);
+}
+.flow__step[data-active='true'] {
+  color: var(--paper);
+  border-top-color: var(--paper);
+  border-top-width: 2px;
+  padding-top: 11px;
+}
+.flow[data-highlighting='true'] .flow__step[data-active='false'] {
+  opacity: 0.62;
+}
+
+/* Short caption under a diagram that says what it is and is not. */
+.diagram__note {
+  margin-top: 10px;
+  font: 400 var(--small-size) / 1.35 var(--text);
+  color: var(--paper-dim);
+}
+
+@media (max-width: 767px) {
+  .chapter__entry {
+    padding-top: 22px;
+  }
+  .chapter__title {
+    margin-top: 20px;
+  }
+  .blocks {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+  .flow__steps {
+    grid-auto-flow: row;
+    grid-auto-columns: auto;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .flow__step {
+    display: grid;
+    grid-template-columns: 2.5em 1fr;
+    column-gap: 12px;
+    padding-top: 10px;
+  }
+  .flow__step::before {
+    margin-bottom: 0;
+    padding-top: 3px;
+  }
+  .flow__step-note {
+    grid-column: 2;
+  }
+  .contrib__list {
+    gap: 0 20px;
+  }
+}

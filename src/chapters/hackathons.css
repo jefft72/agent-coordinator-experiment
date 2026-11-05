@@ -1,0 +1,173 @@
+/* Chapter 01. The entry is on the plum surface; the two spreads are authored
+   viewport-scale compositions with the media on opposite sides. */
+
+.hack__index {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px 48px;
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid var(--rule);
+}
+.hack__index-name {
+  display: inline-block;
+  font: 900 var(--row-size) / 0.86 var(--display);
+  text-transform: uppercase;
+  color: var(--paper);
+  text-decoration: none;
+}
+.hack__index-name:hover,
+.hack__index-name:focus-visible {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.12em;
+}
+.hack__index-event {
+  margin-top: 12px;
+}
+.hack__index-titles {
+  margin-top: 4px;
+}
+.hack__index-titles li {
+  font: 600 var(--body-size) / 1.3 var(--text);
+  color: var(--paper);
+}
+.hack__index-titles li + li {
+  margin-top: 2px;
+}
+
+/* Spreads */
+
+.spread {
+  position: relative;
+  margin-top: 96px;
+  padding: 88px 0 112px;
+  background: var(--field);
+  scroll-margin-top: var(--header-clearance);
+}
+.spread + .spread {
+  margin-top: 0;
+}
+.spread--media-left {
+  padding-top: 112px;
+}
+
+.spread__grid {
+  display: grid;
+  column-gap: 56px;
+  row-gap: 40px;
+  align-items: start;
+  min-height: calc(100svh - var(--header-clearance));
+}
+.spread--media-right .spread__grid {
+  grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
+  grid-template-areas:
+    'head media'
+    'contrib media'
+    'contrib flow'
+    'proof flow';
+}
+.spread--media-left .spread__grid {
+  grid-template-columns: minmax(0, 62fr) minmax(0, 38fr);
+  grid-template-areas:
+    'media head'
+    'media contrib'
+    'flow contrib'
+    'flow proof';
+}
+.spread__head {
+  grid-area: head;
+}
+.spread__media {
+  grid-area: media;
+  align-self: start;
+}
+.spread__contrib {
+  grid-area: contrib;
+  align-self: start;
+}
+.spread__flow {
+  grid-area: flow;
+  align-self: end;
+}
+.spread__proof {
+  grid-area: proof;
+  align-self: end;
+}
+
+.spread__kicker {
+  color: var(--paper-dim);
+}
+.spread__head .project__title {
+  margin-top: 10px;
+}
+.spread__head .award {
+  margin-top: 22px;
+}
+.award__proof {
+  display: inline-block;
+  margin-top: 10px;
+  font: 500 var(--small-size) / 1.3 var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.spread__summary {
+  margin-top: 26px;
+  max-width: 42ch;
+}
+.spread__figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 20px;
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font: 500 var(--small-size) / 1.35 var(--text);
+  color: var(--paper-dim);
+}
+.spread__role {
+  margin-bottom: 12px;
+}
+
+/* The media keeps its real aspect ratio; the surface shows around it. */
+.spread__media img {
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+@media (max-width: 1023px) {
+  .spread--media-right .spread__grid,
+  .spread--media-left .spread__grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'head'
+      'media'
+      'contrib'
+      'flow'
+      'proof';
+    min-height: 0;
+    row-gap: 32px;
+  }
+  .spread__flow,
+  .spread__proof {
+    align-self: start;
+  }
+}
+
+@media (max-width: 767px) {
+  .hack__index {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin-top: 32px;
+  }
+  .spread {
+    margin-top: 64px;
+    padding: 56px 0 72px;
+  }
+  .spread--media-left {
+    padding-top: 72px;
+  }
+  .spread__summary {
+    margin-top: 20px;
+  }
+}

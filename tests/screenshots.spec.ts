@@ -2,12 +2,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test, expect, devices, type Page } from '@playwright/test';
+import { test, expect, devices, type Browser, type Page } from '@playwright/test';
 import {
   SETTLED_LOAD_STATES,
   SETTLED_RENDER_STATES,
-  detailsButton,
-  detailsDialog,
+  contributionTab,
   scrollThroughPage,
   scrollToTop,
   waitForLoadState,
@@ -22,6 +21,19 @@ import {
 
 const SCREENS_DIR = fileURLToPath(new URL('../.context/screens/', import.meta.url));
 const iphone = devices['iPhone 14'];
+const CHAPTER_SHOTS: Array<[string, string]> = [
+  ['hackathons', '#hackathons'],
+  ['animalabs', '#project-animalabs'],
+  ['opencraft', '#project-opencraft'],
+  ['experience', '#experience'],
+  ['judi', '[data-testid="project-judi"]'],
+  ['rtx', '[data-testid="project-rtx"]'],
+  ['ventures', '#ventures'],
+  ['diffex', '[data-testid="project-diffex"]'],
+  ['uplate', '[data-testid="project-uplate"]'],
+  ['about', '#about'],
+  ['contact', '#contact'],
+];
 
 function shot(name: string, page: Page): string {
   fs.mkdirSync(SCREENS_DIR, { recursive: true });
@@ -36,160 +48,118 @@ async function settle(page: Page, pause = 1_200) {
   await page.waitForTimeout(pause);
 }
 
+async function landOn(page: Page, selector: string) {
+  await page.locator(selector).first().evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
+  await page.waitForTimeout(500);
+}
+
+/** Settled viewports of the opening handoff and every chapter, in page order. */
+async function chapterShots(prefix: string, page: Page) {
+  await page.goto('/?intro=skip');
+  await settle(page, 600);
+  await page.screenshot({ path: shot(`${prefix}-opening`, page) });
+  const end = await page.evaluate(() => document.getElementById('opening')?.offsetHeight ?? 0);
+  for (const fraction of [0.35, 0.7]) {
+    await page.evaluate((y) => window.scrollTo({ top: y, behavior: 'instant' }), Math.round(end * fraction));
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: shot(`${prefix}-handoff-${Math.round(fraction * 100)}`, page) });
+  }
+  for (const [name, selector] of CHAPTER_SHOTS) {
+    await landOn(page, selector);
+    await page.screenshot({ path: shot(`${prefix}-${name}`, page) });
+  }
+  await landOn(page, '#project-animalabs');
+  await contributionTab(page, 'animalabs', 'analyst').click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: shot(`${prefix}-animalabs-analyst`, page) });
+  await landOn(page, '[data-testid="project-uplate"]');
+  await page.locator('button[data-testid="gallery-uplate-next"]').click();
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: shot(`${prefix}-uplate-2`, page) });
+  await scrollThroughPage(page);
+  await scrollToTop(page);
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: shot(`${prefix}-full`, page), fullPage: true });
+}
+
+/** One continuous recording: cold load, then native wheel scrolling from the name through both wins into Experience. */
+async function journey(browser: Browser, baseURL: string | undefined, name: string, viewport: { width: number; height: number }, mobile: boolean) {
+  fs.mkdirSync(SCREENS_DIR, { recursive: true });
+  const context = await browser.newContext({
+    baseURL,
+    viewport,
+    recordVideo: { dir: SCREENS_DIR, size: viewport },
+    ...(mobile ? { userAgent: iphone.userAgent, deviceScaleFactor: iphone.deviceScaleFactor, isMobile: true, hasTouch: true } : {}),
+  });
+  const page = await context.newPage();
+  const video = page.video();
+  await page.context().route('https://www.youtube.com/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'text/html', body: '<!doctype html><title>Watch demo opened in a new tab</title>' }),
+  );
+  await page.goto('/');
+  await settle(page, 500);
+  if (!mobile) {
+    await page.mouse.move(400, 300);
+    await page.waitForTimeout(300);
+  }
+  const experienceTop = await page.evaluate(() => (document.getElementById('experience')?.getBoundingClientRect().top ?? 0) + window.scrollY);
+  const step = mobile ? 70 : 110;
+  for (let guard = 0; guard < 400; guard += 1) {
+    const y = await page.evaluate(() => window.scrollY);
+    if (y >= experienceTop + viewport.height * 0.3) break;
+    if (mobile) await page.evaluate((dy) => window.scrollBy({ top: dy, behavior: 'instant' }), step);
+    else await page.mouse.wheel(0, step);
+    await page.waitForTimeout(40);
+  }
+  await page.waitForTimeout(700);
+  // A real contribution change and a real proof link, then back to the chapter.
+  await page.locator('#project-animalabs').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  await page.waitForTimeout(1_200);
+  await contributionTab(page, 'animalabs', 'analyst').click();
+  await page.waitForTimeout(900);
+  await contributionTab(page, 'animalabs', 'reports').click();
+  await page.waitForTimeout(900);
+  const [popup] = await Promise.all([
+    page.waitForEvent('popup'),
+    page.locator('article[data-testid="project-animalabs"] a[href="https://www.youtube.com/watch?v=UBaKKoPopSg"]').first().click(),
+  ]);
+  await popup.waitForLoadState();
+  await page.waitForTimeout(600);
+  await popup.close();
+  await page.waitForTimeout(400);
+  await page.close();
+  const target = path.join(SCREENS_DIR, `${name}.webm`);
+  if (video) {
+    await video.saveAs(target);
+    await video.delete();
+  }
+  await context.close();
+  expect(fs.existsSync(target)).toBe(true);
+}
+
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } });
 
-  test('opening, work, full page, and details', async ({ page }) => {
-    await page.goto('/');
-    await settle(page);
-    await page.screenshot({ path: shot('desktop-opening', page) });
-
-    await page.evaluate(() => window.scrollTo({ top: Math.round(window.innerHeight * 0.45), behavior: 'instant' }));
-    await page.waitForTimeout(700);
-    await page.screenshot({ path: shot('desktop-mid-scroll', page) });
-
-    await page.locator('h2#work-heading').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: shot('desktop-work', page) });
-
-    await detailsButton(page, 'opencraft').focus();
-    await page.waitForTimeout(900);
-    await page.screenshot({ path: shot('desktop-work-focus-opencraft', page) });
-
-    await scrollThroughPage(page);
-    await scrollToTop(page);
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: shot('desktop-full', page), fullPage: true });
-
-    await detailsButton(page, 'animalabs').scrollIntoViewIfNeeded();
-    await detailsButton(page, 'animalabs').click();
-    await expect(detailsDialog(page)).toBeVisible();
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: shot('desktop-details-animalabs', page) });
+  test('settled chapters', async ({ page }) => {
+    await chapterShots('desktop', page);
   });
 
-  test('stage at rest, mid-phase, and at the end', async ({ page }) => {
-    await page.goto('/?intro=skip');
-    await settle(page, 300);
-    await detailsButton(page, 'animalabs').scrollIntoViewIfNeeded();
-    await detailsButton(page, 'animalabs').click();
-    const stage = page.locator('[data-testid="project-stage"]');
-    await expect(stage).toHaveAttribute('data-mode', 'paused', { timeout: 12_000 });
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: shot('desktop-stage-animalabs-end', page) });
-    await page.locator('[data-testid="stage-phase"]').fill('35');
-    await page.waitForTimeout(800);
-    await page.screenshot({ path: shot('desktop-stage-animalabs-phase35', page) });
-    await page.locator('[data-testid="stage-reset"]').click();
-    await page.waitForTimeout(1_600);
-    await page.screenshot({ path: shot('desktop-stage-animalabs-rest', page) });
+  test('journey video', async ({ browser, baseURL }) => {
+    await journey(browser, baseURL, 'desktop-journey', { width: 1440, height: 900 }, false);
   });
 
-  test('stage clip switching between two project patterns', async ({ browser, baseURL }) => {
-    fs.mkdirSync(SCREENS_DIR, { recursive: true });
-    const context = await browser.newContext({
-      baseURL,
-      viewport: { width: 1440, height: 900 },
-      recordVideo: { dir: SCREENS_DIR, size: { width: 1440, height: 900 } },
-    });
-    const page = await context.newPage();
-    const video = page.video();
-    await page.goto('/?intro=skip');
-    await settle(page, 300);
-    for (const id of ['animalabs', 'opencraft']) {
-      await detailsButton(page, id).scrollIntoViewIfNeeded();
-      await detailsButton(page, id).click();
-      await expect(detailsDialog(page)).toBeVisible();
-      await expect(page.locator('[data-testid="project-stage"]')).toHaveAttribute('data-mode', 'paused', { timeout: 12_000 });
-      await page.waitForTimeout(500);
-      await page.locator('[data-testid="stage-replay"]').click();
-      await page.waitForTimeout(2_500);
-      await page.locator('[data-testid="stage-phase"]').fill('60');
-      await page.waitForTimeout(900);
-      await page.keyboard.press('Escape');
-      await page.waitForTimeout(400);
-    }
-    await page.close();
-    const target = path.join(SCREENS_DIR, 'desktop-stage-switch.webm');
-    if (video) {
-      await video.saveAs(target);
-      await video.delete();
-    }
-    await context.close();
-    expect(fs.existsSync(target)).toBe(true);
-  });
-
-  test('fallback', async ({ page }) => {
+  test('fallback, reduced motion, loading', async ({ page }) => {
     await page.goto('/?webgl=off');
     await settle(page);
     await page.screenshot({ path: shot('desktop-fallback', page) });
-  });
-
-  test('reduced motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
     await settle(page);
     await page.screenshot({ path: shot('desktop-reduced', page) });
-  });
-
-  test('loading', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.goto('/?scene=stall', { waitUntil: 'commit' });
-    await page
-      .waitForSelector('[data-testid="intro"]', { state: 'attached', timeout: 300 })
-      .catch(() => undefined);
+    await page.waitForSelector('[data-testid="intro"]', { state: 'attached', timeout: 300 }).catch(() => undefined);
     await page.screenshot({ path: shot('desktop-loading', page) });
-  });
-
-  test('motion video', async ({ browser, baseURL }) => {
-    fs.mkdirSync(SCREENS_DIR, { recursive: true });
-    const context = await browser.newContext({
-      baseURL,
-      viewport: { width: 1440, height: 900 },
-      recordVideo: { dir: SCREENS_DIR, size: { width: 1440, height: 900 } },
-    });
-    const page = await context.newPage();
-    const video = page.video();
-    expect(video, 'the context should record a video').not.toBeNull();
-
-    await page.goto('/');
-    await settle(page, 400);
-
-    const from = { x: 160, y: 200 };
-    const to = { x: 1280, y: 720 };
-    const steps = 12;
-    await page.mouse.move(from.x, from.y);
-    for (let i = 1; i <= steps; i += 1) {
-      await page.mouse.move(from.x + ((to.x - from.x) * i) / steps, from.y + ((to.y - from.y) * i) / steps);
-      await page.waitForTimeout(60);
-    }
-    await page.waitForTimeout(900);
-    await page.mouse.move(400, 300);
-    await page.waitForTimeout(700);
-    // Native scroll into Work and both wins, then a row response and one details interaction.
-    for (let i = 0; i < 6; i += 1) {
-      await page.mouse.wheel(0, 140);
-      await page.waitForTimeout(140);
-    }
-    await page.waitForTimeout(700);
-    const row = await page.locator('article[data-testid="project-opencraft"]').boundingBox();
-    if (row) {
-      await page.mouse.move(row.x + 320, row.y + 40);
-      await page.waitForTimeout(1_100);
-    }
-    await detailsButton(page, 'animalabs').click();
-    await expect(detailsDialog(page)).toBeVisible();
-    await page.waitForTimeout(1_000);
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(600);
-
-    await page.close();
-    const target = path.join(SCREENS_DIR, 'desktop-motion.webm');
-    if (video) {
-      await video.saveAs(target);
-      await video.delete();
-    }
-    await context.close();
-    expect(fs.existsSync(target)).toBe(true);
   });
 });
 
@@ -202,39 +172,25 @@ test.describe('mobile', () => {
     hasTouch: true,
   });
 
-  test('opening and full page', async ({ page }) => {
-    await page.goto('/');
-    await settle(page);
-    await page.screenshot({ path: shot('mobile-opening', page) });
-    await scrollThroughPage(page);
-    await scrollToTop(page);
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: shot('mobile-full', page), fullPage: true });
+  test('settled chapters', async ({ page }) => {
+    await chapterShots('mobile', page);
   });
 
-  test('stage at rest and at the end', async ({ page }) => {
-    await page.goto('/?intro=skip');
-    await settle(page, 300);
-    await detailsButton(page, 'opencraft').scrollIntoViewIfNeeded();
-    await detailsButton(page, 'opencraft').tap();
-    await expect(detailsDialog(page)).toBeVisible();
-    await page.locator('[data-testid="stage-open"]').tap();
-    const stage = page.locator('[data-testid="project-stage"]');
-    await expect(stage).toHaveAttribute('data-mode', 'paused', { timeout: 12_000 });
-    await page.waitForTimeout(600);
-    await page.screenshot({ path: shot('mobile-stage-opencraft-end', page) });
-    await page.locator('[data-testid="stage-reset"]').tap();
-    await page.waitForTimeout(1_600);
-    await page.screenshot({ path: shot('mobile-stage-opencraft-rest', page) });
+  test('journey video', async ({ browser, baseURL }) => {
+    await journey(browser, baseURL, 'mobile-journey', { width: 390, height: 844 }, true);
   });
 });
 
 test.describe('narrow', () => {
   test.use({ viewport: { width: 320, height: 700 } });
 
-  test('opening', async ({ page }) => {
+  test('opening and full page', async ({ page }) => {
     await page.goto('/');
     await settle(page);
     await page.screenshot({ path: shot('narrow-opening', page) });
+    await scrollThroughPage(page);
+    await scrollToTop(page);
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: shot('narrow-full', page), fullPage: true });
   });
 });

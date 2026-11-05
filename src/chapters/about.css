@@ -1,0 +1,117 @@
+/* Chapter 04. Graphite surface, wide measure, and generous spacing so the
+   reference lists read without competing with anything. */
+
+.about__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 38fr) minmax(0, 62fr);
+  column-gap: 56px;
+  margin-top: 72px;
+}
+
+.about__heading {
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--paper);
+}
+
+.about__school {
+  margin-top: 22px;
+  font: 900 var(--lead-size-xl) / 0.92 var(--display);
+  text-transform: uppercase;
+  color: var(--paper);
+}
+.about__degree {
+  margin-top: 10px;
+  font: 500 var(--lead-size) / 1.35 var(--text);
+  color: var(--paper);
+}
+.about__small {
+  margin-top: 4px;
+  font: 400 var(--small-size) / 1.35 var(--text);
+  color: var(--paper-dim);
+}
+.about__sublabel {
+  margin: 28px 0 0;
+}
+.about__group:first-of-type .about__sublabel {
+  margin-top: 22px;
+}
+.about__courses {
+  margin-top: 8px;
+  font: 400 var(--body-size) / 1.5 var(--text);
+}
+.about__items {
+  display: flex;
+  flex-wrap: wrap;
+  row-gap: 2px;
+  margin-top: 8px;
+  max-width: 70ch;
+  font: 400 var(--lead-size) / 1.45 var(--text);
+}
+.about__items li:not(:last-child)::after {
+  content: '\00B7';
+  margin: 0 0.5em;
+  color: var(--paper-faint);
+}
+
+/* Contact: the last words, with the destinations spelled out. */
+.contact {
+  margin-top: 128px;
+  padding: 56px 0 96px;
+  border-top: 1px solid var(--rule);
+  scroll-margin-top: var(--header-clearance);
+}
+.contact__heading {
+  font: 500 var(--small-size) / 1.3 var(--text);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--paper-dim);
+}
+.contact__links {
+  margin-top: 28px;
+}
+.contact__links li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 24px;
+}
+.contact__links li + li {
+  margin-top: 14px;
+}
+.contact__link {
+  display: inline-block;
+  font: 900 var(--row-size) / 0.86 var(--display);
+  text-transform: uppercase;
+  color: var(--paper);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.12em;
+  text-decoration-color: var(--rule-strong);
+}
+.contact__link:hover,
+.contact__link:focus-visible {
+  text-decoration-color: currentColor;
+}
+.contact__destination {
+  font: 400 var(--body-size) / 1.4 var(--text);
+  color: var(--paper-dim);
+}
+.contact__name {
+  margin-top: 56px;
+}
+
+@media (max-width: 767px) {
+  .about__grid {
+    grid-template-columns: 1fr;
+    row-gap: 48px;
+    margin-top: 48px;
+  }
+  .contact {
+    margin-top: 88px;
+    padding: 40px 0 72px;
+  }
+  .contact__name {
+    margin-top: 40px;
+  }
+}

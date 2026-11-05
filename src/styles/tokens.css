@@ -13,11 +13,26 @@
   --graphite: #23252a;
   --silver: #d9dbdd;
 
-  /* Readability plane used inside project details only. */
-  --plane: #f5f5f2;
-  --plane-ink: #0a0b0d;
-  --plane-ink-dim: rgba(10, 11, 13, 0.62);
-  --plane-rule: rgba(10, 11, 13, 0.14);
+  /* Chapter surfaces. The two hackathon fields are measured from the real media:
+     the AnimaLabs poster ground and the OpenCraft foliage. Experience is the one
+     light surface; About and Contact lift to graphite so the ending reads apart
+     from the Ventures field. */
+  --plum: #3a2c48;
+  --forest: #1c2c0f;
+  --paper-field: #ecebe6;
+  --quiet: #16171b;
+
+  /* Ink set used on the light surface. */
+  --ink: #0a0b0d;
+  --ink-dim: rgba(10, 11, 13, 0.64);
+  --ink-faint: rgba(10, 11, 13, 0.36);
+  --ink-rule: rgba(10, 11, 13, 0.16);
+  --ink-rule-strong: rgba(10, 11, 13, 0.44);
+
+  /* Header colours follow the zone under it; set on html by the zone tracker. */
+  --zone-field: var(--field);
+  --zone-paper: var(--paper);
+  --zone-paper-dim: var(--paper-dim);
 
   --display: 'Archivo ExtraCondensed', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
   --text: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
@@ -26,16 +41,18 @@
   --max-width: 1600px;
   /* Anchor targets stop below the fixed header. */
   --header-clearance: 86px;
-  /* Space above Experience, About, and Contact. */
-  --section-space: 128px;
+  /* Height of the next chapter's entry that shows at the bottom of the opening. */
+  --announce: 112px;
 
   /* Name: real glyph height, not a transform. */
   --name-size: clamp(96px, 14.6vw, 212px);
   --name-leading: 0.84;
-  --heading-size: clamp(40px, 5.2vw, 76px);
+  /* Chapter titles, project titles, and the large leads inside chapters. */
+  --chapter-size: clamp(52px, 16vw, 136px);
+  --title-size: clamp(48px, 6.6vw, 96px);
+  --lead-size-xl: clamp(34px, 4.2vw, 60px);
   --row-size: clamp(30px, 3.6vw, 52px);
-  /* Supporting type: group labels and record names in the normal-width face. */
-  --group-size: 17px;
+  /* Supporting type in the normal-width face. */
   --lead-size: 20px;
   --body-size: 17px;
   --small-size: 14px;
@@ -47,11 +64,26 @@
   --focus: 0 0 0 2px var(--field), 0 0 0 4px var(--paper);
 }
 
+html[data-zone='hackathons'] {
+  --zone-field: var(--plum);
+}
+html[data-zone='opencraft'] {
+  --zone-field: var(--forest);
+}
+html[data-zone='experience'] {
+  --zone-field: var(--paper-field);
+  --zone-paper: var(--ink);
+  --zone-paper-dim: var(--ink-dim);
+}
+html[data-zone='about'] {
+  --zone-field: var(--quiet);
+}
+
 @media (max-width: 767px) {
   :root {
     --gutter: 20px;
     --header-clearance: 70px;
-    --section-space: 88px;
+    --announce: 96px;
     --body-size: 16px;
     --small-size: 13px;
     --nav-size: 14px;
