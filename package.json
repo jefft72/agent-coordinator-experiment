@@ -1,18 +1,20 @@
 {
   "name": "jeffrey-tseng-portfolio",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:subpath": "VITE_BASE=/agent-coordinator-experiment/ vite build --outDir dist-subpath",
     "preview": "vite preview --port 4173 --strictPort",
+    "preview:subpath": "VITE_BASE=/agent-coordinator-experiment/ vite preview --outDir dist-subpath --port 4174 --strictPort",
     "lint": "eslint . && tsc -b --noEmit",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "test:browser": "playwright test",
-    "screenshots": "playwright test tests/screenshots.spec.ts",
-    "check": "npm run lint && npm run test && npm run build && npm run test:browser"
+    "test:browser": "npm run build && npm run build:subpath && playwright test",
+    "screenshots": "playwright test tests/screenshots.spec.ts --project=screenshots",
+    "check": "npm run lint && npm run test && npm run test:browser"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.6",

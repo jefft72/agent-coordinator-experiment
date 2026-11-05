@@ -1,41 +1,51 @@
 :root {
-  /* Opening spread */
-  --ground: #dce4e8;
-  --ink: #442631;
-  --ink-soft: #5e4350;
-  --rule: rgba(68, 38, 49, 0.28);
-  --rule-strong: rgba(68, 38, 49, 0.6);
+  color-scheme: dark;
 
-  /* Chapters */
-  --paper: #ffffff;
-  --oxblood: #442631;
-  --pale: #dce4e8;
+  /* Base relationship: near-black field, near-white type. */
+  --field: #0a0b0d;
+  --paper: #f5f5f2;
+  --paper-dim: rgba(245, 245, 242, 0.62);
+  --paper-faint: rgba(245, 245, 242, 0.34);
+  --rule: rgba(245, 245, 242, 0.14);
+  --rule-strong: rgba(245, 245, 242, 0.4);
 
-  /* Scene materials, mirrored in src/scene/contract.ts */
-  --scene-ink: #16131a;
-  --scene-silver: #eef2f4;
-  --scene-green: #5f7b66;
+  /* Graphite and silver, mirrored in the scene material. */
+  --graphite: #23252a;
+  --silver: #d9dbdd;
 
-  --serif: 'Ortica Linear', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-  --sans: 'Source Sans 3', 'Source Sans Pro', 'Helvetica Neue', Arial, sans-serif;
+  /* Readability plane used inside project details only. */
+  --plane: #f5f5f2;
+  --plane-ink: #0a0b0d;
+  --plane-ink-dim: rgba(10, 11, 13, 0.62);
+  --plane-rule: rgba(10, 11, 13, 0.14);
+
+  --display: 'Archivo ExtraCondensed', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --display-wide: 'Archivo Condensed', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+  --text: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
 
   --gutter: 32px;
-  --col-gap: 24px;
-  --max-width: 1440px;
+  --max-width: 1600px;
 
-  --name-size: clamp(64px, 9.2vw, 136px);
-  --title-size: clamp(22px, 2.2vw, 30px);
+  /* Name: real glyph height, not a transform. */
+  --name-size: clamp(96px, 14.6vw, 212px);
+  --name-leading: 0.84;
+  --heading-size: clamp(40px, 5.2vw, 76px);
+  --row-size: clamp(30px, 3.6vw, 52px);
   --body-size: 17px;
-  --small-size: 15px;
+  --small-size: 14px;
+  --nav-size: 15px;
 
-  --focus: 0 0 0 2px var(--ground), 0 0 0 4px var(--ink);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+
+  --focus: 0 0 0 2px var(--field), 0 0 0 4px var(--paper);
 }
 
 @media (max-width: 767px) {
   :root {
     --gutter: 20px;
-    --col-gap: 16px;
     --body-size: 16px;
-    --small-size: 14px;
+    --small-size: 13px;
+    --nav-size: 14px;
   }
 }

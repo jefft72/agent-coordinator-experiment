@@ -1,371 +1,158 @@
-/* Opening spread: cool pale blue ground, oxblood type, 12-column grid, 32px gutters. */
-
-.opening {
-  max-width: var(--max-width);
-  margin: 0 auto;
-  padding: 0 var(--gutter) 24px;
-}
-
-.masthead,
-.spread,
-.strip {
-  display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  column-gap: var(--col-gap);
-}
-
-/* Name and identity */
-
-.masthead {
-  padding-top: 44px;
-  align-items: start;
-}
-
-.masthead__name {
-  grid-column: 1 / span 9;
-  font-family: var(--serif);
-  font-weight: 300;
-  font-size: var(--name-size);
-  line-height: 0.9;
-  letter-spacing: -0.012em;
-  margin-left: -0.03em;
-  white-space: nowrap;
-  color: var(--ink);
-}
-
-.identity {
-  grid-column: 10 / span 3;
-  padding-top: 10px;
-  font-size: var(--small-size);
-  line-height: 1.45;
-}
-
-.identity__lines li + li {
-  margin-top: 1px;
-}
-
-.identity__contact {
-  display: flex;
-  gap: 18px;
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
-}
-
-/* Index, sheet, caption */
-
-.spread {
-  margin-top: 38px;
-  row-gap: 0;
-}
-
-.index {
-  grid-column: 1 / span 3;
-  align-self: start;
-}
-
-.index__heading {
-  font: 600 var(--small-size) / 1.3 var(--sans);
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--rule-strong);
-}
-
-.index__item {
-  border-bottom: 1px solid var(--rule);
-}
-
-.index__button {
-  display: block;
-  width: 100%;
-  padding: 10px 0 11px;
-  position: relative;
-}
-
-.index__button::before {
-  content: '';
-  position: absolute;
+/* Header: small functional navigation, fixed, no containers. */
+.site-header {
+  position: fixed;
   left: 0;
-  top: -1px;
-  width: 0;
-  height: 2px;
-  background: var(--ink);
-  transition: width 320ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  right: 0;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px var(--gutter) 0;
+  height: 62px;
+  pointer-events: none;
+}
+.site-header > * {
+  pointer-events: auto;
+}
+.site-header__home {
+  text-decoration: none;
+  line-height: 38px;
+}
+.site-nav__list {
+  display: flex;
+  gap: 28px;
+}
+.site-nav__link {
+  display: inline-block;
+  line-height: 38px;
+  text-decoration: none;
+  color: var(--paper-dim);
+  transition: color 240ms var(--ease-out);
+}
+.site-nav__link:hover,
+.site-nav__link:focus-visible {
+  color: var(--paper);
 }
 
-.index__item[data-selected='true'] .index__button::before {
-  width: 100%;
-}
-
-.index__name {
-  display: block;
-  font-family: var(--serif);
-  font-weight: 400;
-  font-size: 25px;
-  line-height: 1.05;
-  letter-spacing: -0.005em;
-}
-
-.index__descriptor {
-  display: block;
-  margin-top: 5px;
-  font-size: 14px;
-  line-height: 1.3;
-  color: var(--ink-soft);
-}
-
-.index__item[data-selected='true'] .index__descriptor {
-  color: var(--ink);
-}
-
-.index__button:hover .index__name {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.12em;
-  text-decoration-color: var(--rule-strong);
-}
-
-.stage {
-  grid-column: 4 / span 9;
-  height: 440px;
+/* Opening region. Height leaves the Work heading and first row inside the first viewport. */
+.opening {
   position: relative;
+  height: max(560px, calc(100svh - 176px));
+  z-index: 1;
 }
 
-.sheet {
-  position: absolute;
+/* The fixed canvas sits behind everything; sections after the opening cover it. */
+.scene {
+  position: fixed;
   inset: 0;
-  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 240ms var(--ease-out);
 }
-
-.sheet__webgl {
+.scene[data-active='false'] {
+  visibility: hidden;
+}
+.scene__webgl,
+.scene__fallback {
   position: absolute;
   inset: 0;
+}
+.scene__webgl {
   opacity: 0;
-  transition: opacity 400ms ease-out;
+  transition: opacity 600ms var(--ease-out);
 }
-.sheet__webgl.is-visible {
+.scene__webgl canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+.scene[data-render-state='ready'] .scene__webgl {
   opacity: 1;
 }
-
-.caption {
-  grid-column: 4 / span 9;
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule-strong);
-  display: grid;
-  grid-template-columns: 3fr 6fr;
-  column-gap: var(--col-gap);
-  min-height: 150px;
+.scene__fallback {
+  transition: opacity 600ms var(--ease-out);
+}
+.scene[data-render-state='ready'] .scene__fallback {
+  opacity: 0;
 }
 
-.caption--rest {
+.opening__identity {
+  position: absolute;
+  left: calc(var(--gutter) + 4px);
+  top: 100px;
+  max-width: 420px;
+  font-size: var(--body-size);
+  line-height: 1.5;
+  color: var(--paper);
+}
+
+.opening__name {
+  position: absolute;
+  left: var(--gutter);
+  bottom: 56px;
+  margin: 0;
+  font-family: var(--display);
+  font-weight: 900;
+  font-size: var(--name-size);
+  line-height: var(--name-leading);
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+  color: var(--paper);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  /* Trim the glyph box so the rectangular mass sits exactly on its baseline. */
+  margin-left: -0.025em;
+}
+.opening__name span {
   display: block;
 }
 
-.caption__rest {
-  max-width: 62ch;
-  font-size: var(--small-size);
-  line-height: 1.45;
-  color: var(--ink-soft);
+@media (max-width: 767px) {
+  .site-header {
+    padding-top: 16px;
+    height: 54px;
+  }
+  .site-nav__list {
+    gap: 16px;
+  }
+  .opening {
+    height: max(520px, calc(100svh - 150px));
+  }
+  .opening__identity {
+    top: auto;
+    bottom: 36px;
+    left: var(--gutter);
+    max-width: 260px;
+    font-size: var(--small-size);
+    line-height: 1.5;
+  }
+  .opening__name {
+    bottom: auto;
+    top: 96px;
+  }
 }
 
-.caption__name {
-  font-family: var(--serif);
-  font-weight: 400;
-  font-size: var(--title-size);
-  line-height: 1.05;
+@media (max-width: 359px) {
+  :root {
+    --name-size: 82px;
+  }
+  .site-nav__list {
+    gap: 12px;
+  }
 }
 
-.caption__role {
-  margin-top: 8px;
-  font-size: var(--small-size);
-  line-height: 1.4;
+/* Everything after the opening paints on a solid field above the fixed canvas,
+   so the Work heading rises over the folding sculpture as a clean mask. */
+main > :not(.opening) {
+  position: relative;
+  z-index: 1;
+  background: var(--field);
 }
-
-.caption__artifact {
-  margin-top: 10px;
-  font-size: 13px;
-  line-height: 1.4;
-  font-style: italic;
-  color: var(--ink-soft);
-}
-
-.caption__body {
-  columns: 2;
-  column-gap: var(--col-gap);
-  font-size: var(--small-size);
-  line-height: 1.42;
-}
-
-.caption__fact {
-  break-inside: avoid;
-}
-.caption__fact + .caption__fact {
-  margin-top: 8px;
-}
-
-.caption__links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 10px;
-  break-inside: avoid;
-  font-weight: 600;
-}
-
-/* Recognition strip at the first viewport's bottom */
-
-.strip {
-  margin-top: 28px;
-  padding-top: 14px;
-  border-top: 1px solid var(--rule-strong);
-  align-items: start;
-}
-
-.strip__heading {
-  grid-column: 1 / span 3;
-  font: 600 var(--small-size) / 1.3 var(--sans);
-}
-
-.strip__award {
-  grid-column: span 4;
-}
-.strip__award + .strip__award {
-  grid-column: span 5;
-}
-
-.strip__project {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-}
-
-.strip__name {
-  font-family: var(--serif);
-  font-weight: 400;
-  font-size: 25px;
-  line-height: 1;
-}
-
-.strip__event {
-  font-size: var(--small-size);
-}
-
-.strip__categories {
-  margin-top: 6px;
-  font-size: var(--small-size);
-  line-height: 1.4;
-}
-
-.strip__links {
-  margin-top: 4px;
-  font-size: 14px;
-  display: flex;
-  gap: 14px;
-}
-
-/* Mobile: bespoke stacking, not a shrunken desktop */
 
 @media (max-width: 767px) {
-  .opening {
-    padding-bottom: 32px;
-  }
-
-  .masthead {
-    padding-top: 22px;
-    row-gap: 10px;
-  }
-
-  .masthead__name {
-    grid-column: 1 / -1;
-    white-space: normal;
-    font-size: 70px;
-    line-height: 0.92;
-    letter-spacing: -0.015em;
-  }
-  .masthead__first,
-  .masthead__last {
-    display: block;
-  }
-
-  .identity {
-    grid-column: 1 / -1;
-    padding-top: 4px;
-    display: grid;
-    grid-template-columns: 1fr auto;
-    column-gap: 16px;
-    font-size: 14px;
-    line-height: 1.3;
-  }
-  .identity__contact {
-    margin-top: 0;
-    padding-top: 0;
-    border-top: 0;
-    flex-direction: column;
-    gap: 2px;
-    text-align: right;
-  }
-
-  .spread {
-    margin-top: 16px;
-  }
-
-  .stage {
-    grid-column: 1 / -1;
-    height: 260px;
-    order: 1;
-    margin: 0 calc(-1 * var(--gutter));
-  }
-
-  .index {
-    grid-column: 1 / -1;
-    order: 2;
-    margin-top: 10px;
-  }
-
-  .index__list {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    column-gap: var(--col-gap);
-  }
-  .index__button {
-    padding: 8px 0 9px;
-  }
-  .index__name {
-    font-size: 22px;
-  }
-  .index__descriptor {
-    font-size: 13px;
-    margin-top: 3px;
-  }
-
-  .caption {
-    grid-column: 1 / -1;
-    order: 3;
-    display: block;
-    min-height: 0;
-    margin-top: 18px;
-  }
-  .caption__body {
-    columns: 1;
-    margin-top: 12px;
-  }
-
-  .strip {
-    margin-top: 28px;
-    row-gap: 16px;
-  }
-  .strip__heading,
-  .strip__award,
-  .strip__award + .strip__award {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (max-width: 420px) {
-  .masthead__name {
-    font-size: clamp(56px, 17.5vw, 70px);
-  }
-  .index__list {
-    grid-template-columns: 1fr;
+  .site-header__home {
+    display: none;
   }
 }
