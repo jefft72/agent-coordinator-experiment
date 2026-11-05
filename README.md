@@ -1,7 +1,7 @@
 # Jeffrey Tseng, portfolio
 
 A static site built with React, TypeScript, and Vite.
-The opening is one WebGL scene rendered with react-three-fiber: an abstract sculpture of beveled graphite blades along a folded sweep, lit by two authored light shapes.
+The opening is one WebGL scene rendered with react-three-fiber: an abstract sculpture of thin metal plates twisted along a spine that rises to a lit crest and folds back into depth, lit by a graded dome and three authored light shapes.
 Every fact, link, and project detail lives in semantic HTML and remains available without WebGL, without JavaScript animation, and on a keyboard.
 
 ## Local development
@@ -40,9 +40,17 @@ WebGL tests are serialized on two workers because simultaneous contexts saturate
 - Returning visits in the same session, direct section links such as `/#hackathons`, and `prefers-reduced-motion` bypass the intro.
 - Native document scrolling drives the fold from the opening into Work. There is no scroll hijacking and no pinned section.
 - Pointer movement over the opening causes a local, travelling change in blade alignment that settles when the pointer leaves. Touch devices get the same reveal and scroll transition without the pointer response.
+- Each project row ends in a blade rule: a line of edge-on plates drawn from the same modulation the sculpture uses. Hovering, focusing, or selecting the row turns the plates in that project's own pattern and they settle when the row is left. This works on touch, on the keyboard, without WebGL, and as a still pattern under reduced motion.
 - Each project row has a Details control that opens a native dialog. Escape, the Close control, or the backdrop closes it, and focus returns to the control that opened it.
+- Section links stop below the fixed header.
 
-Query parameters used by the test suite: `?intro=skip`, `?intro=play`, `?webgl=off`, `?scene=stall`, `?scene=fail`.
+Query parameters used by the test suite: `?intro=skip`, `?intro=play`, `?webgl=off`, `?scene=stall`, `?scene=fail`, `?scene=chunk-fail`.
+
+## Artwork
+
+`src/scene/bladeField.ts` is pure math shared by the WebGL scene, the SVG fallback, and the unit tests: the spine, plate heights, the twist expressed relative to each plate's face-on pose, the loader's collapsed pose, the scroll fold, and the camera.
+`src/scene/environment.ts` builds the reflection environment from a graded dome and three light shapes whose positions are exported from the field, so the fallback shades its faces from the same lights.
+`src/scene/modulation.ts` holds the six per-project patterns used by both the sculpture and the inline blade rules.
 
 ## Fonts
 
