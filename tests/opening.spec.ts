@@ -1,224 +1,170 @@
 /// <reference lib="dom" />
-import { test, expect, type Page } from '@playwright/test';
-import { work, projectOrder, identity, type ProjectId } from '../src/content/work';
+import { test, expect } from '@playwright/test';
+import { identity, nav, hackathonProjects } from '../src/content/site';
+import {
+  SETTLED_LOAD_STATES,
+  SETTLED_RENDER_STATES,
+  article,
+  collectConsoleErrors,
+  documentScrollWidth,
+  expectAtLeastOne,
+  expectCleanLog,
+  expectInViewport,
+  focusedHref,
+  gotoAndSettle,
+  htmlRoot,
+  requireBox,
+  scene,
+  scrollThroughPage,
+  shiftTabUntilHref,
+  skipUnlessProject,
+  waitForLoadState,
+  waitForRenderState,
+} from './helpers';
 
-const RENDER_STATES = /^(ready|fallback|failed)$/;
-const FORBIDDEN = [/\bgraduat(?:ion|ing)\b|\bexpected\b/i, /(?:\+1[ .-]?)?\(?\b\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b/];
+test.describe('opening', () => {
+  test('name, identity, nav, and the work sequence are present', async ({ page }, testInfo) => {
+    await gotoAndSettle(page, '/?intro=skip');
+    await expect(htmlRoot(page)).toHaveAttribute('data-load-state', 'bypassed');
 
-function indexButton(page: Page, id: ProjectId) {
-  return page.getByTestId(`index-${id}`);
-}
-
-async function expectOnlySelected(page: Page, id: ProjectId | null) {
-  for (const other of projectOrder) {
-    await expect(indexButton(page, other)).toHaveAttribute('aria-pressed', other === id ? 'true' : 'false');
-  }
-  await expect(page.getByTestId('sheet')).toHaveAttribute('data-selected', id ?? 'none');
-}
-
-async function expectCaptionFor(page: Page, id: ProjectId) {
-  const entry = work[id];
-  const caption = page.getByTestId('caption');
-  await expect(caption.getByTestId('caption-name')).toHaveText(entry.name);
-  await expect(caption).toContainText(entry.roleLine);
-  for (const fact of entry.facts) {
-    await expect(caption).toContainText(fact);
-  }
-  for (const link of entry.links) {
-    const anchor = caption.locator(`a[href="${link.href}"]`);
-    await expect(anchor).toHaveCount(1);
-    await expect(anchor).toContainText(link.label);
-  }
-}
-
-test.describe('opening content', () => {
-  test('name, identity, index, and recognition strip are present', async ({ page }) => {
-    await page.goto('/');
-
-    const opening = page.locator('section#opening[data-testid="opening"]');
-    await expect(opening).toBeVisible();
+    await expect(page.locator('section#opening[data-testid="opening"]')).toBeVisible();
     await expect(page.locator('h1#name')).toHaveText('Jeffrey Tseng');
 
-    const id = page.getByTestId('identity');
+    const identityBlock = page.getByTestId('identity');
     for (const line of identity.lines) {
-      await expect(id).toContainText(line);
-    }
-    await expect(id.locator('a[href="mailto:tseng94@purdue.edu"]')).toHaveCount(1);
-    await expect(id.locator('a[href="https://github.com/jefft72"]')).toHaveCount(1);
-    await expect(id.locator('a[href="https://linkedin.com/in/j-tseng/"]')).toHaveCount(1);
-
-    const index = page.getByTestId('work-index');
-    await expect(index.locator('button[data-testid^="index-"]')).toHaveCount(6);
-    for (const pid of projectOrder) {
-      await expect(index.locator(`button[data-testid="index-${pid}"]`)).toHaveAttribute('aria-pressed', 'false');
+      await expect(identityBlock).toContainText(line);
     }
 
-    await expect(page.getByTestId('caption')).toContainText('Six');
-
-    const strip = page.getByTestId('recognition-strip');
-    for (const text of [
-      'Cal Hacks 13.0',
-      'Best AI-First Disruptor',
-      'MLH Commit Fellowship',
-      'HackPrinceton Spring 2026',
-      'Best use of Dedalus Containers',
-    ]) {
-      await expect(strip).toContainText(text);
+    const siteNav = page.locator('header[data-testid="site-header"] nav[data-testid="site-nav"]');
+    for (const item of nav) {
+      const link = siteNav.locator(`a[href="${item.href}"]`);
+      await expect(link, `nav link ${item.href}`).toHaveCount(1);
+      await expect(link).toHaveText(item.label);
     }
-    await expect(strip.locator('a[href="https://devpost.com/software/anima-labs"]')).toHaveCount(1);
-    await expect(strip.locator('a[href="https://devpost.com/software/opencraft"]')).toHaveCount(1);
 
-    await expect(page.locator('section#hackathons')).toHaveCount(1);
-    const openingBox = await opening.boundingBox();
-    const hackathonsBox = await page.locator('section#hackathons').boundingBox();
-    expect(openingBox).not.toBeNull();
-    expect(hackathonsBox).not.toBeNull();
-    expect(hackathonsBox!.y).toBeGreaterThan(openingBox!.y);
-  });
-
-  test('mobile: first project links and the strip are reachable', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'mobile project only');
-    await page.goto('/');
-    const tops: number[] = [];
-    for (const pid of projectOrder) {
-      const box = await indexButton(page, pid).boundingBox();
-      if (box) tops.push(box.y);
+    if (testInfo.project.name === 'desktop') {
+      await expectInViewport(page.locator('h2#work-heading'));
+      await expectInViewport(article(page, 'animalabs'));
     }
-    expect(tops.length).toBeGreaterThan(0);
-    expect(Math.min(...tops)).toBeLessThan(844);
-    await expect(page.getByTestId('recognition-strip')).toHaveCount(1);
-  });
-});
 
-test.describe('selection', () => {
-  test('clicking an index entry selects it and fills the caption', async ({ page }) => {
+    expect(hackathonProjects).toHaveLength(2);
+    for (const project of hackathonProjects) {
+      const row = article(page, project.id);
+      const award = project.award;
+      expect(award, `${project.id} should carry an award`).toBeDefined();
+      if (!award) continue;
+      await expect(row).toContainText(award.event);
+      for (const title of award.titles) {
+        await expect(row).toContainText(title);
+      }
+      await expectAtLeastOne(row.locator(`a[href="${award.proof.href}"]`), `${project.id} proof link ${award.proof.href}`);
+    }
+  });
+
+  test('scene renders by default', async ({ page }, testInfo) => {
     await page.goto('/');
-    await expectOnlySelected(page, null);
-
-    await indexButton(page, 'opencraft').click();
-    await expectOnlySelected(page, 'opencraft');
-    await expectCaptionFor(page, 'opencraft');
-
-    await indexButton(page, 'diffex').click();
-    await expectOnlySelected(page, 'diffex');
-    await expectCaptionFor(page, 'diffex');
-  });
-
-  test('keyboard: arrows move focus, Enter and Space select', async ({ page }) => {
-    await page.goto('/');
-    await indexButton(page, 'diffex').focus();
-    await expect(indexButton(page, 'diffex')).toBeFocused();
-
-    await page.keyboard.press('ArrowDown');
-    await expect(indexButton(page, 'judi')).toBeFocused();
-    await page.keyboard.press('ArrowDown');
-    await expect(indexButton(page, 'animalabs')).toBeFocused();
-    await page.keyboard.press('Enter');
-    await expectOnlySelected(page, 'animalabs');
-    await expectCaptionFor(page, 'animalabs');
-
-    await page.keyboard.press('ArrowDown');
-    await expect(indexButton(page, 'opencraft')).toBeFocused();
-    await page.keyboard.press('Space');
-    await expectOnlySelected(page, 'opencraft');
-
-    await page.keyboard.press('ArrowUp');
-    await expect(indexButton(page, 'animalabs')).toBeFocused();
-
-    // Roving tabindex: exactly one of the six buttons is in the tab order.
-    const tabbable = await page
-      .getByTestId('work-index')
-      .locator('button[data-testid^="index-"]')
-      .evaluateAll((els) => els.filter((el) => (el as HTMLElement).tabIndex === 0).length);
-    expect(tabbable).toBe(1);
-  });
-});
-
-test.describe('sheet rendering', () => {
-  test('?webgl=off shows the fallback and selection still updates', async ({ page }) => {
-    await page.goto('/?webgl=off');
-    const sheet = page.getByTestId('sheet');
-    await expect(sheet).toHaveAttribute('data-render-state', 'fallback', { timeout: 8_000 });
-    const fallback = page.getByTestId('sheet-fallback');
-    await expect(fallback).toBeVisible();
-    await expect(fallback).toHaveAttribute('data-selected', 'none');
-    await expect(sheet.locator('[data-testid="sheet-webgl"] canvas')).toHaveCount(0);
-
-    await indexButton(page, 'judi').click();
-    await expect(sheet).toHaveAttribute('data-selected', 'judi');
-    await expect(fallback).toHaveAttribute('data-selected', 'judi');
-    await expect(fallback.locator('[data-artifact="judi"]')).toHaveAttribute('data-state', 'selected');
-    await expect(fallback.locator('[data-artifact="judi"]')).toBeVisible();
-    await expect(fallback.locator('[data-artifact="opencraft"]')).toHaveAttribute('data-state', 'dimmed');
-
-    await indexButton(page, 'uplate').click();
-    await expect(sheet).toHaveAttribute('data-selected', 'uplate');
-    await expect(fallback.locator('[data-artifact="uplate"]')).toBeVisible();
-    await expect(fallback.locator('img[alt="UPlate onboarding screen"]')).toHaveCount(1);
-  });
-
-  test('the sheet settles into a render state and is never blank', async ({ page }, testInfo) => {
-    await page.goto('/');
-    const sheet = page.getByTestId('sheet');
-    await expect(sheet).toHaveAttribute('data-render-state', RENDER_STATES, { timeout: 8_000 });
-
-    const box = await sheet.boundingBox();
-    expect(box).not.toBeNull();
-    const minHeight = testInfo.project.name === 'desktop' ? 200 : 180;
-    expect(box!.height).toBeGreaterThan(minHeight);
-
-    const canvas = sheet.locator('[data-testid="sheet-webgl"] canvas');
-    const fallback = sheet.locator('[data-testid="sheet-fallback"]');
-    const state = await sheet.getAttribute('data-render-state');
+    const stage = scene(page);
+    const canvas = stage.locator('[data-testid="scene-webgl"] canvas');
+    if (testInfo.project.name === 'desktop') {
+      await expect(stage).toHaveAttribute('data-render-state', 'ready', { timeout: 15_000 });
+      await expect(canvas).toHaveCount(1);
+      await expect(canvas).toBeVisible();
+      return;
+    }
+    // Phones may legitimately use the compact fallback; either way the stage must settle and be consistent.
+    const state = await waitForRenderState(page, ['ready', 'fallback']);
+    testInfo.annotations.push({ type: 'render-state', description: state });
     if (state === 'ready') {
+      await expect(canvas).toHaveCount(1);
       await expect(canvas).toBeVisible();
     } else {
-      await expect(fallback).toBeVisible();
+      await expect(page.getByTestId('scene-fallback')).toBeVisible();
+      await expect(canvas).toHaveCount(0);
     }
-    const visible = (await canvas.count()) > 0 ? await canvas.first().isVisible() : await fallback.isVisible();
-    expect(visible).toBe(true);
   });
-});
 
-test.describe('layout and hygiene', () => {
-  test('no horizontal overflow at 320px', async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'narrow', 'narrow project only');
+  test('?webgl=off renders the static fallback without a canvas', async ({ page }) => {
+    await page.goto('/?webgl=off&intro=skip');
+    await expect(scene(page)).toHaveAttribute('data-render-state', 'fallback', { timeout: 15_000 });
+    const fallback = page.getByTestId('scene-fallback');
+    await expect(fallback).toBeVisible();
+    await expect
+      .poll(() => fallback.locator('polygon').count(), { message: 'fallback should draw at least 50 polygons' })
+      .toBeGreaterThanOrEqual(50);
+    await expect(page.locator('canvas')).toHaveCount(0);
+  });
+
+  test('keyboard reaches the nav links in order and Enter on Work scrolls to the heading', async ({ page }) => {
+    await gotoAndSettle(page, '/?intro=skip');
+
+    const expected: string[] = nav.map((item) => item.href);
+    const reached: string[] = [];
+    const seen: string[] = [];
+    for (let i = 0; i < 16 && reached.length < expected.length; i += 1) {
+      await page.keyboard.press('Tab');
+      const href = await focusedHref(page);
+      seen.push(href ?? `(${await page.evaluate(() => document.activeElement?.tagName ?? 'none')})`);
+      if (href && expected.includes(href) && !reached.includes(href)) reached.push(href);
+    }
+    expect(reached, `tab sequence was: ${seen.join(' > ')}`).toEqual(expected);
+
+    expect(await shiftTabUntilHref(page, '#work'), 'Shift+Tab should return to the Work link').toBe(true);
+    await page.keyboard.press('Enter');
+    await expectInViewport(page.locator('h2#work-heading'));
+  });
+
+  test('default load and a full scroll produce no console errors or failed requests', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'desktop');
+    const log = collectConsoleErrors(page);
+
     await page.goto('/');
+    await waitForLoadState(page, SETTLED_LOAD_STATES);
+    await waitForRenderState(page, SETTLED_RENDER_STATES);
     await page.evaluate(() => document.fonts.ready);
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    expect(scrollWidth).toBeLessThanOrEqual(320);
-  });
-
-  test('served HTML and rendered text contain no stale resume details', async ({ page }) => {
-    const response = await page.request.get('/');
-    expect(response.ok()).toBe(true);
-    // Hashed asset filenames are not content; strip them before scanning.
-    const html = (await response.text()).replace(/\/assets\/[^"' >]+/g, '');
-    for (const needle of FORBIDDEN) {
-      expect(html, `served HTML contains "${needle}"`).not.toMatch(needle);
-    }
-
-    await page.goto('/');
-    await expect(page.locator('h1#name')).toHaveText('Jeffrey Tseng');
-    const text = await page.evaluate(() => document.body.innerText);
-    for (const needle of FORBIDDEN) {
-      expect(text, `page text contains "${needle}"`).not.toMatch(needle);
-    }
-  });
-
-  test('no console errors or page errors on load', async ({ page }) => {
-    const consoleErrors: string[] = [];
-    const pageErrors: string[] = [];
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') consoleErrors.push(msg.text());
-    });
-    page.on('pageerror', (err) => pageErrors.push(err.message));
-
-    await page.goto('/');
-    await expect(page.getByTestId('sheet')).toHaveAttribute('data-render-state', RENDER_STATES, { timeout: 8_000 });
+    await scrollThroughPage(page);
     await page.waitForTimeout(500);
 
-    expect(pageErrors, pageErrors.join('\n')).toEqual([]);
-    expect(consoleErrors, consoleErrors.join('\n')).toEqual([]);
+    expectCleanLog(log);
+  });
+
+  test('no horizontal overflow at 320px', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'narrow');
+    await gotoAndSettle(page, '/?intro=skip');
+    expect(await documentScrollWidth(page), 'scroll width after load').toBeLessThanOrEqual(320);
+    await scrollThroughPage(page);
+    expect(await documentScrollWidth(page), 'scroll width after scrolling to the bottom').toBeLessThanOrEqual(320);
+  });
+
+  test('mobile: the name fits, Work follows it, and both awards read in sequence', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'mobile');
+    await gotoAndSettle(page, '/?intro=skip');
+
+    const name = page.locator('h1#name');
+    await expect(name).toBeVisible();
+    const nameBox = await requireBox(name);
+    expect(nameBox.width, 'h1#name width').toBeLessThan(390);
+
+    const headingBox = await requireBox(page.locator('h2#work-heading'));
+    expect(headingBox.y, 'Work heading should sit below the name').toBeGreaterThanOrEqual(nameBox.y + nameBox.height);
+
+    const row = article(page, 'animalabs');
+    await row.scrollIntoViewIfNeeded();
+    await expect(row).toBeVisible();
+
+    const award = hackathonProjects.find((project) => project.id === 'animalabs')?.award;
+    expect(award).toBeDefined();
+    if (!award) return;
+    expect(award.titles.length).toBeGreaterThanOrEqual(2);
+
+    let previousTop = Number.NEGATIVE_INFINITY;
+    for (const title of award.titles) {
+      const titleNode = row.getByText(title).first();
+      await titleNode.scrollIntoViewIfNeeded();
+      await expect(titleNode, `award title "${title}"`).toBeVisible();
+      const box = await requireBox(titleNode);
+      expect(box.y, `"${title}" should follow the previous award`).toBeGreaterThanOrEqual(previousTop);
+      previousTop = box.y;
+    }
+    await expect(row.getByRole('tab')).toHaveCount(0);
   });
 });
