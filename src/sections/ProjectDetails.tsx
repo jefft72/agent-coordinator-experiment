@@ -144,8 +144,10 @@ export function ProjectDetails({ project, opener = null, onClose }: ProjectDetai
           <div className="details__award">
             <p className="label">{award.event}</p>
             <ul className="details__titles">
-              {award.titles.map((title) => (
-                <li key={title}>{title}</li>
+              {award.titles.map(({ outcome, title }) => (
+                <li key={title}>
+                  <span className="label">{outcome}</span> {title}
+                </li>
               ))}
             </ul>
             <ContentLink className="details__proof" link={award.proof} />

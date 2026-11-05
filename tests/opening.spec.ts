@@ -54,7 +54,7 @@ test.describe('opening', () => {
       expect(award, `${project.id} should carry an award`).toBeDefined();
       if (!award) continue;
       await expect(row).toContainText(award.event);
-      for (const title of award.titles) {
+      for (const { title } of award.titles) {
         await expect(row).toContainText(title);
       }
       await expectAtLeastOne(row.locator(`a[href="${award.proof.href}"]`), `${project.id} proof link ${award.proof.href}`);
@@ -157,7 +157,7 @@ test.describe('opening', () => {
     expect(award.titles.length).toBeGreaterThanOrEqual(2);
 
     let previousTop = Number.NEGATIVE_INFINITY;
-    for (const title of award.titles) {
+    for (const { title } of award.titles) {
       const titleNode = row.getByText(title).first();
       await titleNode.scrollIntoViewIfNeeded();
       await expect(titleNode, `award title "${title}"`).toBeVisible();

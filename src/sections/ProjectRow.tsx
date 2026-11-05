@@ -65,8 +65,10 @@ export function ProjectRow({ project, onDetails }: ProjectRowProps) {
           <div className="row__award">
             <p className="label">{award.event}</p>
             <ul className="row__titles">
-              {award.titles.map((title) => (
-                <li key={title}>{title}</li>
+              {award.titles.map(({ outcome, title }) => (
+                <li key={title}>
+                  <span className="label">{outcome}</span> {title}
+                </li>
               ))}
             </ul>
             <ContentLink className="row__proof" link={award.proof} />

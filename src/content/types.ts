@@ -11,11 +11,18 @@ export interface Link {
   href: string;
 }
 
+export interface AwardTitle {
+  /** Track win or awarded fellowship. Never an overall event win. */
+  outcome: 'Winner' | 'Awarded';
+  /** Exact award name with the sponsor in square brackets, for example "[MLH] Commit Fellowship". */
+  title: string;
+}
+
 export interface Award {
   /** Event name exactly as verified, for example "Cal Hacks 13.0". */
   event: string;
-  /** Exact track award names. Never an overall event win. */
-  titles: string[];
+  /** Exact track award names with their outcome. Never an overall event win. */
+  titles: AwardTitle[];
   /** Proof destination, for example the Devpost page. */
   proof: Link;
 }

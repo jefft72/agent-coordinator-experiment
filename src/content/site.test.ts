@@ -41,7 +41,7 @@ const FORBIDDEN: Array<{ label: string; pattern: RegExp }> = [
   { label: 'graduation date', pattern: /\bgraduat(?:ion|ing)\b|\bexpected\b/i },
   { label: 'phone number', pattern: /(?:\+1[ .-]?)?\(?\b\d{3}\)?[ .-]\d{3}[ .-]\d{4}\b/ },
   { label: 'em dash', pattern: /\u2014/ },
-  { label: 'overall event win', pattern: /\b(grand prize|overall winner|first place|1st place)\b/i },
+  { label: 'overall event win', pattern: /\b(grand prize|overall winner|first place|1st place|champion\w*)\b/i },
   { label: 'straight apostrophe (the module uses U+2019 throughout)', pattern: /'/ },
   { label: 'editorial label', pattern: /\b(visible summary|illustrative)\b/i },
 ];
@@ -157,14 +157,28 @@ describe('awards', () => {
     expect(projects.filter((project) => project.award).map((project) => project.id)).toEqual(['animalabs', 'opencraft']);
     expect(projectById.animalabs.award).toEqual({
       event: 'Cal Hacks 13.0',
-      titles: ['Best AI-First Disruptor, CREAO AI track', 'MLH Commit Fellowship'],
+      titles: [
+        { outcome: 'Winner', title: '[CREAO AI] Best AI-First Disruptor' },
+        { outcome: 'Awarded', title: '[MLH] Commit Fellowship' },
+      ],
       proof: { label: 'Project and awards on Devpost', href: 'https://devpost.com/software/anima-labs' },
     });
     expect(projectById.opencraft.award).toEqual({
       event: 'HackPrinceton Spring 2026',
-      titles: ['Best use of Dedalus Containers'],
+      titles: [{ outcome: 'Winner', title: '[Dedalus] Best use of Dedalus Containers' }],
       proof: { label: 'Project and award on Devpost', href: 'https://devpost.com/software/opencraft' },
     });
+  });
+
+  it('mark each title as a track win or an awarded fellowship with the sponsor in square brackets', () => {
+    for (const project of hackathonProjects) {
+      const titles = project.award?.titles ?? [];
+      expect(titles.length, project.id).toBeGreaterThan(0);
+      for (const { outcome, title } of titles) {
+        expect(['Winner', 'Awarded'], `${project.id} ${title}`).toContain(outcome);
+        expect(title, project.id).toMatch(/^\[[^\]]+\] \S/);
+      }
+    }
   });
 
   it('are reachable from the project links as well as the proof', () => {
@@ -245,6 +259,10 @@ describe('evidence', () => {
   it('labels the video frames and app screens truthfully', () => {
     expect(projectById.animalabs.evidence[0].caption).toBe('Title frame from the demo video');
     expect(projectById.opencraft.evidence[0].caption).toBe('Scene from the demo video');
+    expect(projectById.opencraft.evidence[0].alt).toBe(
+      'Scene from the OpenCraft demo video: a Minecraft clearing with a wooden hut, a wheat field, a fenced cow pen, and an agent named cow_assassin standing in the open.',
+    );
+    expect(projectById.opencraft.evidence[0].alt).not.toMatch(/cobblestone/i);
     expect(projectById.uplate.evidence[0].caption).toBe('Onboarding screen from the shipped app');
     for (const item of projectById.uplate.evidence) expect(item.caption).toMatch(/shipped app$/);
   });
@@ -291,12 +309,13 @@ describe('quantitative claims', () => {
 
 describe('résumé coverage', () => {
   it.each([
-    ['judi', 'Firecracker microVM platform on AWS'],
+    ['judi', 'leading development of a new Firecracker microVM platform on AWS'],
     ['judi', 'isolated execution environments'],
     ['judi', 'platform VP toward broader deployment across engineering workflows'],
     ['judi', 'capacity-aware scheduler that places microVMs across EC2 hosts and manages their lifecycle'],
     ['judi', 'Rust linter that checks type-safe function calls and integrated it into CI'],
-    ['diffex', 'multiple model providers, typed execution traces, tool orchestration, persistent sessions, and replayable evaluations'],
+    ['diffex', 'I architected a modular Rust harness with provider-agnostic model interfaces'],
+    ['diffex', 'typed execution traces, tool orchestration, persistent sessions, and replayable evaluations'],
     ['diffex', 'attributes token and latency costs, and groups recurring failures'],
     ['diffex', 'proposes targeted harness changes and evaluates the candidates'],
     ['diffex', 'automated trace diagnosis and harness optimization'],
@@ -311,7 +330,8 @@ describe('résumé coverage', () => {
     ['uplate', 'semantic chunks and supplies relevant context to Google’s Gemini API'],
     ['animalabs', 'searches Europe PMC through Apify and proposes experiments with citations'],
     ['animalabs', 'turns simulation outputs into findings and compares them with published studies'],
-    ['animalabs', 'produces LaTeX reports and checksum-verified artifacts'],
+    ['animalabs', 'agent-driven LaTeX reporting pipeline grounded in deterministic simulation analysis'],
+    ['animalabs', 'The agent-driven reporting pipeline produces LaTeX reports and checksum-verified artifacts'],
     ['animalabs', 'Our team’s simulations reproduced published Parkinson’s disease findings on data the model was not fitted to'],
     ['opencraft', 'share jobs, state, and memory'],
     ['opencraft', 'Supabase Postgres, Realtime, and pgvector to store jobs, track agents, and share memory'],

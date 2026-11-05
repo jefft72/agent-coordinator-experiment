@@ -40,17 +40,20 @@ const animalabs: Project = {
   kind: 'Research agents and simulation reports',
   role: 'Cal Hacks 13.0 team project, agent layer and reporting pipeline',
   summary:
-    'I built the research and analyst agents, along with a LaTeX reporting pipeline grounded in deterministic simulation analysis.',
+    'I built the research and analyst agents, along with an agent-driven LaTeX reporting pipeline grounded in deterministic simulation analysis.',
   figures: ['7 simulation-based reports', '23 charts', 'Checksum-verified artifacts'],
   details: [
     'The research agent searches Europe PMC through Apify and proposes experiments with citations.',
     'The analyst agent turns simulation outputs into findings and compares them with published studies.',
-    'The reporting pipeline produces LaTeX reports and checksum-verified artifacts from the analysis.',
+    'The agent-driven reporting pipeline produces LaTeX reports and checksum-verified artifacts from the analysis.',
     'Our team’s simulations reproduced published Parkinson’s disease findings on data the model was not fitted to.',
   ],
   award: {
     event: 'Cal Hacks 13.0',
-    titles: ['Best AI-First Disruptor, CREAO AI track', 'MLH Commit Fellowship'],
+    titles: [
+      { outcome: 'Winner', title: '[CREAO AI] Best AI-First Disruptor' },
+      { outcome: 'Awarded', title: '[MLH] Commit Fellowship' },
+    ],
     proof: { label: 'Project and awards on Devpost', href: 'https://devpost.com/software/anima-labs' },
   },
   links: [
@@ -81,7 +84,7 @@ const opencraft: Project = {
   ],
   award: {
     event: 'HackPrinceton Spring 2026',
-    titles: ['Best use of Dedalus Containers'],
+    titles: [{ outcome: 'Winner', title: '[Dedalus] Best use of Dedalus Containers' }],
     proof: { label: 'Project and award on Devpost', href: 'https://devpost.com/software/opencraft' },
   },
   links: [
@@ -92,7 +95,7 @@ const opencraft: Project = {
   evidence: [
     {
       src: '/work/opencraft-demo.jpg',
-      alt: 'Scene from the OpenCraft demo video: a Minecraft clearing with a wooden hut, a wheat field, and an agent named cow_assassin standing beside a cobblestone pile.',
+      alt: 'Scene from the OpenCraft demo video: a Minecraft clearing with a wooden hut, a wheat field, a fenced cow pen, and an agent named cow_assassin standing in the open.',
       width: 1280,
       height: 720,
       caption: 'Scene from the demo video',
@@ -113,7 +116,7 @@ const diffex: Project = {
     '$50,000 in compute awarded through the Daytona Grid Startup Initiative',
   ],
   details: [
-    'The harness supports multiple model providers, typed execution traces, tool orchestration, persistent sessions, and replayable evaluations.',
+    'I architected a modular Rust harness with provider-agnostic model interfaces, typed execution traces, tool orchestration, persistent sessions, and replayable evaluations.',
     'The evolution pipeline examines execution traces, attributes token and latency costs, and groups recurring failures.',
     'It then proposes targeted harness changes and evaluates the candidates.',
     'After one cycle, the harness reached 20% on SWE-bench Lite through automated trace diagnosis and harness optimization.',
@@ -132,7 +135,7 @@ const judi: Project = {
   role: 'Backend Software Engineering Intern, Judi Health (formerly Capital Rx)',
   dates: 'June 2026 to present, remote',
   summary:
-    'I’m leading development of a Firecracker microVM platform on AWS that gives engineers and coding agents isolated execution environments.',
+    'I’m leading development of a new Firecracker microVM platform on AWS that gives engineers and coding agents isolated execution environments.',
   figures: ['Pharmacy claim adjudication platform serving 5M+ contracted lives'],
   details: [
     'I designed a capacity-aware scheduler that places microVMs across EC2 hosts and manages their lifecycle.',
