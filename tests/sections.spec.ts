@@ -16,6 +16,22 @@ import {
   waitForScrollIdle,
 } from './helpers';
 
+/** WCAG contrast ratio between two CSS rgb()/rgba() colours; an alpha below 1 is treated as opaque for a conservative check. */
+function contrastRatio(foreground: string, background: string): number {
+  const channel = (value: number) => {
+    const c = value / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const luminance = (color: string) => {
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!match) throw new Error(`unparsable colour ${color}`);
+    return 0.2126 * channel(Number(match[1])) + 0.7152 * channel(Number(match[2])) + 0.0722 * channel(Number(match[3]));
+  };
+  const a = luminance(foreground);
+  const b = luminance(background);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
 async function expectDialogFor(page: Page, project: Project) {
   const dialog = detailsDialog(page);
   await expect(dialog).toBeVisible();
@@ -137,6 +153,51 @@ test.describe('work sequence', () => {
     expect(await rule.evaluate((el) => (el as HTMLCanvasElement).toDataURL()), 'still under reduced motion').toBe(first);
   });
 
+  test('the details dialog is a readable light surface in the top layer', async ({ page }) => {
+    const project = projectById.animalabs;
+    const dialog = await openDetails(page, project);
+    const sample = await dialog.evaluate((el) => {
+      const dialogStyle = getComputedStyle(el);
+      const heading = el.querySelector('h2');
+      const body = el.querySelector('.details__body p');
+      const close = el.querySelector('[data-testid="details-close"]');
+      const colorOf = (node: Element | null) => (node ? getComputedStyle(node).color : 'none');
+      return {
+        position: dialogStyle.position,
+        background: dialogStyle.backgroundColor,
+        heading: colorOf(heading),
+        body: colorOf(body),
+        close: colorOf(close),
+        closeBox: close?.getBoundingClientRect().height ?? 0,
+      };
+    });
+    expect(sample.position, 'a modal dialog keeps its native top-layer positioning').toBe('fixed');
+    for (const [label, color] of [['heading', sample.heading], ['body', sample.body], ['close', sample.close]]) {
+      expect(contrastRatio(color, sample.background), `${label} ${color} on ${sample.background} should reach 4.5:1`).toBeGreaterThanOrEqual(4.5);
+    }
+    expect(sample.closeBox, 'the Close control should have a rendered height').toBeGreaterThan(0);
+    await expect(dialog.locator('h2')).toHaveText(project.name);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(detailsButton(page, project.id)).toBeFocused();
+  });
+
+  test('a live reduced-motion change stops the row animation', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'desktop');
+    const rule = article(page, 'animalabs').locator('canvas[data-testid="blade-rule-animalabs"]');
+    await rule.scrollIntoViewIfNeeded();
+    await article(page, 'animalabs').hover();
+    await expect(rule).toHaveAttribute('data-state', 'active');
+    await page.waitForTimeout(800);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForTimeout(300);
+    const first = await rule.evaluate((el) => (el as HTMLCanvasElement).toDataURL());
+    await page.waitForTimeout(600);
+    const second = await rule.evaluate((el) => (el as HTMLCanvasElement).toDataURL());
+    expect(second, 'the rule should hold still once the preference changes').toBe(first);
+    await expect(rule).toHaveAttribute('data-state', 'active');
+  });
+
   test('the Close button closes the details', async ({ page }) => {
     const project = projectById.opencraft;
     const dialog = await openDetails(page, project);
@@ -186,13 +247,19 @@ test.describe('record', () => {
     await expectDialogFor(page, projectById.judi);
   });
 
-  test('warm anchor navigation lands each section heading below the fixed header', async ({ page }) => {
+  test('clicking the header links lands each heading below the fixed header', async ({ page }) => {
     for (const target of ['work', 'hackathons', 'about', 'contact']) {
       // Chrome can drop a fragment navigation issued while the previous smooth scroll is still animating.
       await waitForScrollIdle(page);
-      await gotoAndSettle(page, `/#${target}`);
+      await page.locator(`header[data-testid="site-header"] a[href="#${target}"]`).click();
       await expectAnchorPlaced(page, target);
     }
+  });
+
+  test('activating a header link from the keyboard lands the heading below the header', async ({ page }) => {
+    await page.locator('header[data-testid="site-header"] a[href="#about"]').focus();
+    await page.keyboard.press('Enter');
+    await expectAnchorPlaced(page, 'about');
   });
 
   test('about lists education and every skill', async ({ page }) => {
@@ -277,8 +344,10 @@ test.describe('cold section links', () => {
     await gotoAndSettle(page, '/?intro=skip');
     await page.locator('a[href="#about"]').first().click();
     await expectAnchorPlaced(page, 'about');
+    await waitForScrollIdle(page);
     await page.goBack();
     await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 8_000 }).toBeLessThan(10);
+    await waitForScrollIdle(page);
     await page.goForward();
     await expectAnchorPlaced(page, 'about');
   });

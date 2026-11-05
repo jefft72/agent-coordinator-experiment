@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { ProjectId } from '../content/types';
+import { useReducedMotion } from '../lib/useReducedMotion';
 import { modulate, type Modulation } from '../scene/modulation';
-import { motion } from '../scene/motion';
 
 /** Pixel pitch between plates, drawn height, plate width when fully turned, and gain on the scene's small angles. */
 const PITCH = 7;
@@ -30,11 +30,13 @@ interface RuleState {
  * same modulation the sculpture uses. While the row is active the plates turn
  * and travel in that project's pattern, so the response happens on the row
  * itself on every device and without WebGL; it settles back when the row is
- * left. Reduced motion shows one still instant of the pattern instead.
+ * left. Reduced motion shows one still instant of the pattern instead, and a
+ * preference change while the rule is animating stops it on the next frame.
  */
 export function BladeRule({ project, active }: { project: ProjectId; active: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<RuleState>({ amount: 0, time: 0, last: 0, raf: 0, active: false });
+  const reduced = useReducedMotion();
 
   useEffect(() => {
     stateRef.current.active = active;
@@ -91,7 +93,7 @@ export function BladeRule({ project, active }: { project: ProjectId; active: boo
 
     cancelAnimationFrame(state.raf);
     state.raf = 0;
-    if (motion.reducedMotion) {
+    if (reduced) {
       state.amount = active ? 1 : 0;
       state.time = STILL_TIME;
       draw();
@@ -107,7 +109,7 @@ export function BladeRule({ project, active }: { project: ProjectId; active: boo
       cancelAnimationFrame(state.raf);
       state.raf = 0;
     };
-  }, [project, active]);
+  }, [project, active, reduced]);
 
   return (
     <canvas

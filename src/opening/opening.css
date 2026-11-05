@@ -1,4 +1,7 @@
-/* Header: small functional navigation, fixed, no containers. */
+/* Header: small functional navigation, fixed, no containers. The field colour
+   runs solid behind the text line and fades out just below it, so content
+   scrolling underneath stays legible without a visible bar; the artwork keeps
+   the top of the opening quiet, so the fade never cuts into it. */
 .site-header {
   position: fixed;
   left: 0;
@@ -6,10 +9,11 @@
   top: 0;
   z-index: 10;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   padding: 24px var(--gutter) 0;
-  height: 62px;
+  height: 84px;
+  background: linear-gradient(to bottom, var(--field) 0, var(--field) 62px, transparent 84px);
   pointer-events: none;
 }
 .site-header > * {
@@ -119,7 +123,8 @@
 @media (max-width: 767px) {
   .site-header {
     padding-top: 16px;
-    height: 54px;
+    height: 66px;
+    background: linear-gradient(to bottom, var(--field) 0, var(--field) 54px, transparent 66px);
   }
   .site-nav__list {
     gap: 16px;
@@ -153,9 +158,11 @@
   }
 }
 
-/* Everything after the opening paints a solid field, so the Work heading rises
-   over the folding sculpture as a clean matched mask rather than a fade. */
-.page > :not(.opening) {
+/* Every section after the opening paints a solid field, so the Work heading
+   rises over the folding sculpture as a clean matched mask rather than a fade.
+   Scoped to sections: the details dialog also lives inside the page and must
+   keep its own light surface and the native top-layer positioning. */
+.page > section:not(.opening) {
   position: relative;
   background: var(--field);
 }
