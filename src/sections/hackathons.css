@@ -1,0 +1,165 @@
+.hackathons {
+  background: var(--oxblood);
+  color: var(--pale);
+  padding: 72px 0 96px;
+}
+
+.hackathons a {
+  text-decoration-color: rgba(220, 228, 232, 0.5);
+}
+.hackathons a:hover {
+  text-decoration-color: currentColor;
+}
+.hackathons :focus-visible {
+  box-shadow: 0 0 0 2px var(--oxblood), 0 0 0 4px var(--pale);
+}
+
+.hackathons__inner {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.hackathons__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(220, 228, 232, 0.35);
+  padding-bottom: 14px;
+}
+
+.hackathons__heading {
+  font: 300 clamp(40px, 5vw, 72px) / 1 var(--serif);
+  letter-spacing: -0.01em;
+}
+
+.hackathons__back {
+  font-size: var(--small-size);
+}
+
+.win {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--col-gap);
+  row-gap: 24px;
+  align-items: start;
+}
+
+.win--animalabs {
+  margin-top: 56px;
+}
+.win--animalabs .win__media {
+  grid-column: 1 / span 7;
+}
+.win--animalabs .win__text {
+  grid-column: 9 / span 4;
+  padding-top: 8px;
+}
+
+.win--opencraft {
+  margin-top: 88px;
+}
+.win--opencraft .win__media {
+  grid-column: 1 / span 12;
+  grid-row: 1;
+}
+.win--opencraft .win__text {
+  grid-column: 8 / span 5;
+  grid-row: 2;
+  justify-self: end;
+  text-align: right;
+}
+.win--opencraft .win__links {
+  justify-content: flex-end;
+}
+
+.win__media {
+  display: block;
+  position: relative;
+  text-decoration: none;
+  background: #000;
+}
+.win__media img {
+  width: 100%;
+  height: auto;
+}
+.win--opencraft .win__media img {
+  aspect-ratio: 21 / 9;
+  object-fit: cover;
+  object-position: center 60%;
+}
+.win__media-label {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 8px 12px;
+  background: var(--oxblood);
+  color: var(--pale);
+  font-size: var(--small-size);
+}
+.win--opencraft .win__media-label {
+  left: auto;
+  right: 0;
+}
+
+.win__name {
+  font: 400 clamp(34px, 3.4vw, 48px) / 1.05 var(--serif);
+}
+.win__event {
+  margin-top: 6px;
+  font-size: var(--body-size);
+}
+.win__awards {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(220, 228, 232, 0.35);
+  font: 600 var(--body-size) / 1.4 var(--sans);
+}
+.win__awards li + li {
+  margin-top: 4px;
+}
+.win__fact {
+  margin-top: 18px;
+  max-width: 44ch;
+  line-height: 1.5;
+}
+.win--opencraft .win__fact {
+  margin-left: auto;
+}
+.win__links {
+  display: flex;
+  gap: 18px;
+  margin-top: 20px;
+  font-size: var(--small-size);
+}
+
+@media (max-width: 767px) {
+  .hackathons {
+    padding: 48px 0 64px;
+  }
+  .win--animalabs,
+  .win--opencraft {
+    margin-top: 40px;
+    row-gap: 18px;
+  }
+  .win--animalabs .win__media,
+  .win--animalabs .win__text,
+  .win--opencraft .win__media,
+  .win--opencraft .win__text {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    text-align: left;
+  }
+  .win--opencraft .win__text {
+    grid-row: auto;
+  }
+  .win--opencraft .win__links {
+    justify-content: flex-start;
+  }
+  .win--opencraft .win__fact {
+    margin-left: 0;
+  }
+  .win--opencraft .win__media img {
+    aspect-ratio: 16 / 9;
+  }
+}
