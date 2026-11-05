@@ -2,6 +2,7 @@
 import { test, expect } from '@playwright/test';
 import {
   INTRO_STORAGE_KEY,
+  expectAnchorPlaced,
   expectInViewport,
   firstLoadState,
   htmlRoot,
@@ -92,10 +93,10 @@ test.describe('loader', () => {
     await expect(page.locator('h1#name')).toBeVisible();
   });
 
-  test('a hash link bypasses the intro and lands on the section', async ({ page }) => {
+  test('a hash link bypasses the intro and lands the heading below the header', async ({ page }) => {
     await page.goto('/#hackathons');
     await expect(htmlRoot(page)).toHaveAttribute('data-load-state', 'bypassed');
-    await expectInViewport(page.locator('section#hackathons'));
+    await expectAnchorPlaced(page, 'hackathons');
   });
 
   test('reduced motion settles quickly without the intro', async ({ page }) => {

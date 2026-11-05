@@ -26,6 +26,8 @@
   --max-width: 1600px;
   /* Anchor targets stop below the fixed header. */
   --header-clearance: 86px;
+  /* Space above Experience, About, and Contact. */
+  --section-space: 128px;
 
   /* Name: real glyph height, not a transform. */
   --name-size: clamp(96px, 14.6vw, 212px);
@@ -49,6 +51,7 @@
   :root {
     --gutter: 20px;
     --header-clearance: 70px;
+    --section-space: 88px;
     --body-size: 16px;
     --small-size: 13px;
     --nav-size: 14px;

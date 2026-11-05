@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader } from './loader/Loader';
 import { useLoadSequence, type SceneStatus } from './loader/useLoadSequence';
 import { installMotionControllers } from './lib/controllers';
+import { useInitialFragment } from './lib/useInitialFragment';
 import { Opening } from './opening/Opening';
 import { SceneHost } from './opening/SceneHost';
 import { SiteHeader } from './opening/SiteHeader';
@@ -15,6 +16,7 @@ export default function App() {
   const sequence = useLoadSequence(scene);
 
   useEffect(() => installMotionControllers(), []);
+  useInitialFragment(sequence.state);
 
   return (
     <>

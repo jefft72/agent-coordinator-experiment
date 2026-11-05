@@ -7,10 +7,13 @@ import {
   article,
   detailsButton,
   detailsDialog,
+  expectAnchorPlaced,
   expectAtLeastOne,
   gotoAndSettle,
   requireBox,
   skipUnlessProject,
+  waitForRenderState,
+  waitForScrollIdle,
 } from './helpers';
 
 async function expectDialogFor(page: Page, project: Project) {
@@ -183,28 +186,12 @@ test.describe('record', () => {
     await expectDialogFor(page, projectById.judi);
   });
 
-  test('anchor links land each section heading below the fixed header', async ({ page }) => {
-    const header = page.locator('header[data-testid="site-header"]');
-    const headerBox = await requireBox(header);
-    const viewportHeight = page.viewportSize()?.height ?? 0;
-    const headerBottom = headerBox.y + headerBox.height;
+  test('warm anchor navigation lands each section heading below the fixed header', async ({ page }) => {
     for (const target of ['work', 'hackathons', 'about', 'contact']) {
+      // Chrome can drop a fragment navigation issued while the previous smooth scroll is still animating.
+      await waitForScrollIdle(page);
       await gotoAndSettle(page, `/#${target}`);
-      const heading = page.locator(`#${target} h2, #${target} h3`).first();
-      // Smooth scrolling is still in flight right after navigation, so poll until it settles.
-      // The last sections cannot reach the top of a tall viewport; they must still be in view.
-      await expect
-        .poll(
-          async () => {
-            const box = await heading.boundingBox();
-            if (!box) return 'no box';
-            if (box.y < headerBottom - 1) return `top ${Math.round(box.y)} is under the ${Math.round(headerBottom)}px header`;
-            if (box.y + box.height >= viewportHeight) return `bottom ${Math.round(box.y + box.height)} is below the viewport`;
-            return 'placed';
-          },
-          { message: `#${target} heading placement`, timeout: 8_000 },
-        )
-        .toBe('placed');
+      await expectAnchorPlaced(page, target);
     }
   });
 
@@ -247,5 +234,52 @@ test.describe('record', () => {
     expect(html, 'HTML source contains a phone number').not.toMatch(FORBIDDEN_TEXT.phone);
     expect(html, 'HTML source contains "expected"').not.toMatch(/\bexpected\b/i);
     expect(html, 'HTML source contains an em dash').not.toMatch(FORBIDDEN_TEXT.emDash);
+  });
+});
+
+/**
+ * Cold fragment navigation: every test runs in a fresh browser context, so
+ * these are real first visits to a section link. The browser's own fragment
+ * scroll runs before React renders the target, so the page must settle the
+ * fragment itself once the content and fonts exist.
+ */
+test.describe('cold section links', () => {
+  test.beforeEach(({ page }, testInfo) => {
+    void page;
+    skipUnlessProject(testInfo, 'desktop', 'mobile');
+  });
+
+  for (const target of ['hackathons', 'work', 'about', 'contact']) {
+    test(`a fresh visit to /?webgl=off#${target} lands on the heading`, async ({ page }) => {
+      await gotoAndSettle(page, `/?webgl=off#${target}`);
+      await page.waitForLoadState('networkidle');
+      await waitForRenderState(page, ['fallback']);
+      await expectAnchorPlaced(page, target);
+      expect(await page.evaluate(() => window.scrollY), 'the page should have scrolled').toBeGreaterThan(0);
+    });
+  }
+
+  test('a fresh visit to /#hackathons with the scene lands on the heading and keeps the awards readable', async ({ page }) => {
+    await gotoAndSettle(page, '/#hackathons');
+    await expectAnchorPlaced(page, 'hackathons');
+    for (const project of ['animalabs', 'opencraft']) {
+      await expect(article(page, project)).toBeVisible();
+    }
+  });
+
+  test('a fresh visit under reduced motion lands on the heading without smooth scrolling', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await gotoAndSettle(page, '/#about');
+    await expectAnchorPlaced(page, 'about');
+  });
+
+  test('back from a section link returns to the top, and forward lands on the section again', async ({ page }) => {
+    await gotoAndSettle(page, '/?intro=skip');
+    await page.locator('a[href="#about"]').first().click();
+    await expectAnchorPlaced(page, 'about');
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 8_000 }).toBeLessThan(10);
+    await page.goForward();
+    await expectAnchorPlaced(page, 'about');
   });
 });

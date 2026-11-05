@@ -7,8 +7,9 @@
 }
 
 .sec {
-  padding-top: 128px;
-  scroll-margin-top: var(--header-clearance);
+  padding-top: var(--section-space);
+  /* The anchor lands the heading, not the section's breathing room, below the header. */
+  scroll-margin-top: calc(var(--header-clearance) - var(--section-space));
 }
 
 .sec__heading,
@@ -426,7 +427,7 @@ html.details-open {
 
 @media (max-width: 767px) {
   .sec {
-    padding-top: 88px;
+    padding-top: var(--section-space);
   }
   .work {
     padding-top: 32px;

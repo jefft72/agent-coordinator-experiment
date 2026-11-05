@@ -204,3 +204,56 @@ export async function shiftTabUntilHref(page: Page, href: string, maxTabs = 12):
   }
   return (await focusedHref(page)) === href;
 }
+
+/**
+ * Asserts that the heading of the section `#id` has been scrolled into place:
+ * below the fixed header and near it, unless the document cannot scroll any
+ * further, in which case the heading must at least be fully inside the
+ * viewport. Polls because smooth scrolling may still be in flight.
+ */
+export async function expectAnchorPlaced(page: Page, id: string): Promise<void> {
+  const header = page.locator('header[data-testid="site-header"]');
+  const headerBox = await requireBox(header);
+  const headerBottom = headerBox.y + headerBox.height;
+  const viewportHeight = page.viewportSize()?.height ?? 0;
+  const heading = page.locator(`#${id} h2, #${id} h3`).first();
+  await expect
+    .poll(
+      async () => {
+        const box = await heading.boundingBox();
+        if (!box) return 'no box';
+        const atBottom = await page.evaluate(
+          () => Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight - 1,
+        );
+        if (box.y < headerBottom - 1) return `top ${Math.round(box.y)} is under the ${Math.round(headerBottom)}px header`;
+        if (box.y + box.height > viewportHeight) return `bottom ${Math.round(box.y + box.height)} is below the viewport`;
+        if (!atBottom && box.y > headerBottom + 120) return `top ${Math.round(box.y)} is far below the header at scrollY ${await page.evaluate(() => window.scrollY)}`;
+        return 'placed';
+      },
+      { message: `#${id} heading placement`, timeout: 8_000 },
+    )
+    .toBe('placed');
+}
+
+/** Resolves once window.scrollY has not changed for `quiet` milliseconds. */
+export async function waitForScrollIdle(page: Page, quiet = 300, timeout = 8_000): Promise<void> {
+  await page.evaluate(
+    ({ quiet, timeout }) =>
+      new Promise<void>((resolve) => {
+        const started = performance.now();
+        let last = window.scrollY;
+        let since = performance.now();
+        const tick = () => {
+          const now = performance.now();
+          if (window.scrollY !== last) {
+            last = window.scrollY;
+            since = now;
+          }
+          if (now - since >= quiet || now - started >= timeout) resolve();
+          else requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }),
+    { quiet, timeout },
+  );
+}
