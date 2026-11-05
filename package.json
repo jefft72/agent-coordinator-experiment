@@ -13,7 +13,7 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:browser": "npm run build && npm run build:subpath && playwright test",
-    "screenshots": "playwright test tests/screenshots.spec.ts --project=screenshots",
+    "screenshots": "SCREENSHOTS=1 playwright test --project=screenshots",
     "check": "npm run lint && npm run test && npm run test:browser"
   },
   "dependencies": {

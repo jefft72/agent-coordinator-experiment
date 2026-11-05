@@ -3,13 +3,13 @@ import { defineConfig, devices, type Project } from '@playwright/test';
 const iphone = devices['iPhone 14'];
 
 /**
- * The screenshot project is only materialised when it is asked for, so the
+ * The screenshot project is only materialised when SCREENSHOTS=1 is set, so the
  * default `playwright test` run (and `npm run test:browser`) never produces
- * PNGs or videos. Both `--project=screenshots` and `tests/screenshots.spec.ts`
- * contain the word, as does SCREENSHOTS=1 in the environment.
+ * PNGs or videos. The flag must be an environment variable rather than a
+ * command-line argument because worker processes re-evaluate this config
+ * without the original arguments.
  */
-const screenshotsRequested =
-  process.env.SCREENSHOTS === '1' || process.argv.some((arg) => arg.includes('screenshots'));
+const screenshotsRequested = process.env.SCREENSHOTS === '1';
 
 const chrome = {
   browserName: 'chromium',
