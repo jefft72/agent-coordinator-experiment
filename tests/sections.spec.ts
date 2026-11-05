@@ -186,14 +186,25 @@ test.describe('record', () => {
   test('anchor links land each section heading below the fixed header', async ({ page }) => {
     const header = page.locator('header[data-testid="site-header"]');
     const headerBox = await requireBox(header);
+    const viewportHeight = page.viewportSize()?.height ?? 0;
+    const headerBottom = headerBox.y + headerBox.height;
     for (const target of ['work', 'hackathons', 'about', 'contact']) {
-      await page.goto(`/#${target}`);
       await gotoAndSettle(page, `/#${target}`);
-      await page.waitForTimeout(300);
       const heading = page.locator(`#${target} h2, #${target} h3`).first();
-      const box = await requireBox(heading);
-      expect(box.y, `#${target} heading should clear the header`).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 1);
-      expect(box.y, `#${target} heading should be near the top`).toBeLessThan(headerBox.height + 120);
+      // Smooth scrolling is still in flight right after navigation, so poll until it settles.
+      // The last sections cannot reach the top of a tall viewport; they must still be in view.
+      await expect
+        .poll(
+          async () => {
+            const box = await heading.boundingBox();
+            if (!box) return 'no box';
+            if (box.y < headerBottom - 1) return `top ${Math.round(box.y)} is under the ${Math.round(headerBottom)}px header`;
+            if (box.y + box.height >= viewportHeight) return `bottom ${Math.round(box.y + box.height)} is below the viewport`;
+            return 'placed';
+          },
+          { message: `#${target} heading placement`, timeout: 8_000 },
+        )
+        .toBe('placed');
     }
   });
 

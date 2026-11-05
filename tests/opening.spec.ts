@@ -120,7 +120,9 @@ test.describe('opening', () => {
     await expect
       .poll(() => fallback.locator('polygon').count(), { message: 'fallback should draw at least 50 polygons' })
       .toBeGreaterThanOrEqual(50);
-    await expect(page.locator('canvas')).toHaveCount(0);
+    // No WebGL canvas; the six 2D blade rules under the rows remain.
+    await expect(scene(page).locator('canvas')).toHaveCount(0);
+    await expect(page.locator('canvas[data-testid^="blade-rule-"]')).toHaveCount(6);
   });
 
   test('keyboard reaches the nav links in order and Enter on Work scrolls to the heading', async ({ page }) => {
