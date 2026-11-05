@@ -27,11 +27,23 @@ npm run preview:subpath # serve it on http://localhost:4174/agent-coordinator-ex
 npm run lint          # eslint and tsc
 npm test              # vitest unit tests: content hygiene, blade field math
 npm run test:browser  # builds both outputs, then Playwright in Google Chrome (channel "chrome")
+npm run check         # lint, unit tests, then browser tests: the same sequence CI runs
 npm run screenshots   # review captures into .context/screens/ (untracked)
 ```
 
 Playwright runs isolated headless Chrome from the installed Google Chrome channel.
+If Google Chrome is not installed, `npx playwright install --with-deps chrome` installs the stable channel system-wide.
 WebGL tests are serialized on two workers because simultaneous contexts saturate the GPU.
+
+## Deployment
+
+`.github/workflows/pages.yml` runs on every pull request, on every push to `main`, and on manual dispatch.
+Its `check` job installs dependencies with `npm ci`, runs `npm run lint` and `npm test`, installs Google Chrome for Playwright, runs `npm run test:browser`, and uploads `dist-subpath/` as the Pages artifact.
+Pull requests stop there; they never deploy.
+On a push to `main`, or a manual run, the `deploy` job waits for `check` to pass and then publishes that artifact to GitHub Pages through the `github-pages` environment, so the site serves under `/agent-coordinator-experiment/`.
+Deployments are serialized: a queued deploy waits for the one in progress rather than cancelling it.
+The repository needs one setting before the first deploy: under Settings, Pages, set the source to GitHub Actions.
+Every action in the workflow is pinned to a release commit SHA with the version in a trailing comment, so bump the SHA and the comment together.
 
 ## Real controls
 
