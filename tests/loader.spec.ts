@@ -75,6 +75,15 @@ test.describe('loader', () => {
     await expect(intro(page)).toBeHidden();
   });
 
+  test('a failed scene chunk keeps the page readable with the fallback', async ({ page }) => {
+    await page.goto('/?scene=chunk-fail', { waitUntil: 'commit' });
+    await waitForLoadState(page, ['failed', 'ready', 'bypassed'], 6_000);
+    await waitForRenderState(page, ['failed']);
+    await expect(scene(page).locator('[data-testid="scene-fallback"]')).toBeVisible();
+    await expect(page.locator('h1#name')).toBeVisible();
+    await expectInViewport(page.locator('h2#work-heading'));
+  });
+
   test('a returning visit bypasses the intro', async ({ page }) => {
     await page.addInitScript((key) => sessionStorage.setItem(key, 'seen'), INTRO_STORAGE_KEY);
     await page.goto('/');

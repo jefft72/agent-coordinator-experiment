@@ -44,9 +44,17 @@ test.describe('desktop', () => {
     await settle(page);
     await page.screenshot({ path: shot('desktop-opening', page) });
 
+    await page.evaluate(() => window.scrollTo({ top: Math.round(window.innerHeight * 0.45), behavior: 'instant' }));
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: shot('desktop-mid-scroll', page) });
+
     await page.locator('h2#work-heading').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
     await page.waitForTimeout(600);
     await page.screenshot({ path: shot('desktop-work', page) });
+
+    await detailsButton(page, 'opencraft').focus();
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: shot('desktop-work-focus-opencraft', page) });
 
     await scrollThroughPage(page);
     await scrollToTop(page);
@@ -104,8 +112,24 @@ test.describe('desktop', () => {
       await page.waitForTimeout(60);
     }
     await page.waitForTimeout(900);
-    await page.mouse.wheel(0, 700);
-    await page.waitForTimeout(900);
+    await page.mouse.move(400, 300);
+    await page.waitForTimeout(700);
+    // Native scroll into Work and both wins, then a row response and one details interaction.
+    for (let i = 0; i < 6; i += 1) {
+      await page.mouse.wheel(0, 140);
+      await page.waitForTimeout(140);
+    }
+    await page.waitForTimeout(700);
+    const row = await page.locator('article[data-testid="project-opencraft"]').boundingBox();
+    if (row) {
+      await page.mouse.move(row.x + 320, row.y + 40);
+      await page.waitForTimeout(1_100);
+    }
+    await detailsButton(page, 'animalabs').click();
+    await expect(detailsDialog(page)).toBeVisible();
+    await page.waitForTimeout(1_000);
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(600);
 
     await page.close();
     const target = path.join(SCREENS_DIR, 'desktop-motion.webm');

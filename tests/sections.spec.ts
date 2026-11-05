@@ -88,6 +88,52 @@ test.describe('work sequence', () => {
     }
   });
 
+  test('every row responds visibly on keyboard focus and settles on blur', async ({ page }) => {
+    for (const project of projects) {
+      const row = article(page, project.id);
+      const rule = row.locator(`canvas[data-testid="blade-rule-${project.id}"]`);
+      await expect(row).toHaveAttribute('data-active', 'false');
+      await expect(rule).toHaveAttribute('data-state', 'rest');
+      const rest = await rule.evaluate((el) => (el as HTMLCanvasElement).toDataURL());
+
+      await detailsButton(page, project.id).focus();
+      await expect(row).toHaveAttribute('data-active', 'true');
+      await expect(rule).toHaveAttribute('data-state', 'active');
+      await expect
+        .poll(() => rule.evaluate((el) => (el as HTMLCanvasElement).toDataURL()), {
+          message: `${project.id}: the blade rule should redraw while focused`,
+        })
+        .not.toBe(rest);
+
+      await page.keyboard.press('Shift+Tab');
+      await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      await expect(row).toHaveAttribute('data-active', 'false');
+      await expect(rule).toHaveAttribute('data-state', 'rest');
+      await expect
+        .poll(() => rule.evaluate((el) => (el as HTMLCanvasElement).toDataURL()), {
+          message: `${project.id}: the blade rule should settle back to rest`,
+          timeout: 5_000,
+        })
+        .toBe(rest);
+    }
+  });
+
+  test('the row response is a still pattern under reduced motion', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.reload();
+    await gotoAndSettle(page, '/?intro=skip');
+    const project = projectById.diffex;
+    const rule = article(page, project.id).locator('canvas');
+    const rest = await rule.evaluate((el) => (el as HTMLCanvasElement).toDataURL());
+    await detailsButton(page, project.id).focus();
+    await expect(rule).toHaveAttribute('data-state', 'active');
+    await page.waitForTimeout(200);
+    const first = await rule.evaluate((el) => (el as HTMLCanvasElement).toDataURL());
+    expect(first).not.toBe(rest);
+    await page.waitForTimeout(400);
+    expect(await rule.evaluate((el) => (el as HTMLCanvasElement).toDataURL()), 'still under reduced motion').toBe(first);
+  });
+
   test('the Close button closes the details', async ({ page }) => {
     const project = projectById.opencraft;
     const dialog = await openDetails(page, project);
@@ -135,6 +181,20 @@ test.describe('record', () => {
     await opener.scrollIntoViewIfNeeded();
     await opener.click();
     await expectDialogFor(page, projectById.judi);
+  });
+
+  test('anchor links land each section heading below the fixed header', async ({ page }) => {
+    const header = page.locator('header[data-testid="site-header"]');
+    const headerBox = await requireBox(header);
+    for (const target of ['work', 'hackathons', 'about', 'contact']) {
+      await page.goto(`/#${target}`);
+      await gotoAndSettle(page, `/#${target}`);
+      await page.waitForTimeout(300);
+      const heading = page.locator(`#${target} h2, #${target} h3`).first();
+      const box = await requireBox(heading);
+      expect(box.y, `#${target} heading should clear the header`).toBeGreaterThanOrEqual(headerBox.y + headerBox.height - 1);
+      expect(box.y, `#${target} heading should be near the top`).toBeLessThan(headerBox.height + 120);
+    }
   });
 
   test('about lists education and every skill', async ({ page }) => {
