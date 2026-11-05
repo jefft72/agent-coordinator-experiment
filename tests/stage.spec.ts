@@ -214,6 +214,30 @@ test.describe('project stage', () => {
     await closeDetails(page);
   });
 
+  test('scrolling the stage out of the dialog pauses the timeline, and it resumes when scrolled back', async ({ page }) => {
+    await openStage(page, 'animalabs');
+    await expect(stage(page)).toHaveAttribute('data-mode', 'playing');
+    await expect(stage(page)).toHaveAttribute('data-visible', 'true');
+    await page.waitForTimeout(800);
+    const inner = detailsDialog(page).locator('.details__inner');
+    await inner.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await expect(stage(page)).toHaveAttribute('data-visible', 'false');
+    await page.waitForTimeout(200);
+    const held = await stage(page).getAttribute('data-phase');
+    expect(Number(held)).toBeGreaterThan(0);
+    expect(Number(held)).toBeLessThan(1);
+    await page.waitForTimeout(900);
+    expect(await stage(page).getAttribute('data-phase'), 'the phase should hold while the stage is offscreen').toBe(held);
+    await inner.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    await expect(stage(page)).toHaveAttribute('data-visible', 'true');
+    await expect.poll(() => stage(page).getAttribute('data-phase').then(Number)).toBeGreaterThan(Number(held));
+    await closeDetails(page);
+  });
+
   test('mobile: the stage opens from an explicit control, starts when opened, works by touch, and hides again', async ({ page }, testInfo) => {
     skipUnlessProject(testInfo, 'mobile');
     const opener = detailsButton(page, 'animalabs');

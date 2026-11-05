@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { Project } from '../content/types';
 import { useDocumentVisible } from '../lib/useDocumentVisible';
+import { useInView } from '../lib/useInView';
 import { useReducedMotion } from '../lib/useReducedMotion';
 import { webglAvailable } from '../lib/webgl';
 import { SceneErrorBoundary } from '../scene/SceneErrorBoundary';
@@ -25,9 +26,10 @@ export interface ProjectStageProps {
  * inspection, and Reset returns to the composed rest pose. Under reduced
  * motion, or without WebGL, every control applies its phase immediately
  * instead of animating, and Replay shows the pattern's end state. The
- * timeline only advances while the stage is expanded and the document is
- * visible: a collapsed phone stage begins when it is opened, and a run
- * interrupted by a hidden tab keeps its phase and resumes when shown.
+ * timeline only advances while the stage is expanded, on screen, and the
+ * document is visible: a collapsed phone stage begins when it is opened, and
+ * a run interrupted by scrolling it away or by a hidden tab keeps its phase
+ * and resumes when shown.
  */
 export function ProjectStage({ project, compact }: ProjectStageProps) {
   const reduced = useReducedMotion();
@@ -36,7 +38,9 @@ export function ProjectStage({ project, compact }: ProjectStageProps) {
   const [failed, setFailed] = useState(false);
   const immediate = reduced || !webgl || failed;
   const [open, setOpen] = useState(!compact);
-  const visible = open && documentVisible;
+  const sectionRef = useRef<HTMLElement>(null);
+  const inView = useInView(sectionRef);
+  const visible = open && documentVisible && inView;
   const [phase, setPhase] = useState(() => (immediate ? 1 : 0));
   const [mode, setMode] = useState<Mode>(() => (immediate ? 'paused' : 'playing'));
   const phaseRef = useRef(phase);
@@ -88,12 +92,14 @@ export function ProjectStage({ project, compact }: ProjectStageProps) {
 
   return (
     <section
+      ref={sectionRef}
       className="stage"
       data-testid="project-stage"
       data-mode={mode}
       data-phase={phase.toFixed(2)}
       data-renderer={webgl && !failed ? 'webgl' : 'svg'}
       data-open={open ? 'true' : 'false'}
+      data-visible={visible ? 'true' : 'false'}
       aria-labelledby={labelId}
     >
       <p className="stage__label label" id={labelId}>
@@ -106,7 +112,7 @@ export function ProjectStage({ project, compact }: ProjectStageProps) {
             {webgl && !failed ? (
               <SceneErrorBoundary onFail={fail}>
                 <Suspense fallback={<StageFallback project={project.id} phase={phase} engaged={engaged} compact={compact} />}>
-                  <StageScene project={project.id} phase={phase} engaged={engaged} reduced={reduced || !documentVisible} onFail={fail} />
+                  <StageScene project={project.id} phase={phase} engaged={engaged} reduced={reduced || !visible} onFail={fail} />
                 </Suspense>
               </SceneErrorBoundary>
             ) : (
