@@ -35,14 +35,21 @@
   color: var(--paper);
 }
 
-/* Opening region. Height leaves the Work heading and first row inside the first viewport. */
-.opening {
+/* Stacking, explicitly: the fixed scene is a sibling of the page at z-index 0,
+   the page is a positioned stacking context at z-index 1, the header at 10, the
+   intro at 50. Nothing readable can ever paint beneath the canvas. */
+.page {
   position: relative;
-  height: max(560px, calc(100svh - 176px));
   z-index: 1;
 }
 
-/* The fixed canvas sits behind everything; sections after the opening cover it. */
+/* Opening region. Transparent, so the scene shows through only here. Height
+   leaves the Work heading and first row inside the first viewport. */
+.opening {
+  position: relative;
+  height: max(560px, calc(100svh - 176px));
+}
+
 .scene {
   position: fixed;
   inset: 0;
@@ -121,10 +128,9 @@
     height: max(520px, calc(100svh - 150px));
   }
   .opening__identity {
-    top: auto;
-    bottom: 36px;
+    top: 282px;
     left: var(--gutter);
-    max-width: 260px;
+    max-width: 300px;
     font-size: var(--small-size);
     line-height: 1.5;
   }
@@ -143,11 +149,10 @@
   }
 }
 
-/* Everything after the opening paints on a solid field above the fixed canvas,
-   so the Work heading rises over the folding sculpture as a clean mask. */
-main > :not(.opening) {
+/* Everything after the opening paints a solid field, so the Work heading rises
+   over the folding sculpture as a clean matched mask rather than a fade. */
+.page > :not(.opening) {
   position: relative;
-  z-index: 1;
   background: var(--field);
 }
 

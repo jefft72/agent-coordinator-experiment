@@ -83,6 +83,35 @@ test.describe('opening', () => {
     }
   });
 
+  test('the scene never paints over readable content at any scroll position', async ({ page }, testInfo) => {
+    await gotoAndSettle(page, '/?intro=skip');
+    await waitForRenderState(page, SETTLED_RENDER_STATES);
+    // The canvas ignores pointer events, so make it hit-testable: elementFromPoint follows paint order.
+    await page.addStyleTag({ content: '[data-testid="scene"], [data-testid="scene"] * { pointer-events: auto !important; }' });
+    const height = page.viewportSize()?.height ?? 900;
+    const positions = [0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.3].map((f) => Math.round(f * height));
+    for (const y of positions) {
+      await page.evaluate((top) => window.scrollTo({ top, behavior: 'instant' }), y);
+      await page.waitForTimeout(250);
+      const covered = await page.evaluate(() => {
+        const stage = document.querySelector('[data-testid="scene"]');
+        const selectors = 'h1, h2, h3, h4, p, a, button, li, .opening__identity p';
+        const hits: string[] = [];
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>(selectors))) {
+          if (el.closest('dialog') || el.closest('[data-testid="intro"]')) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0 || r.bottom <= 0 || r.top >= innerHeight) continue;
+          const x = Math.min(innerWidth - 1, Math.max(0, r.left + Math.min(r.width, 40) / 2));
+          const cy = Math.min(innerHeight - 1, Math.max(0, r.top + r.height / 2));
+          const top = document.elementFromPoint(x, cy);
+          if (top && stage?.contains(top)) hits.push(`${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 24)}" at ${Math.round(cy)}`);
+        }
+        return hits;
+      });
+      expect(covered, `${testInfo.project.name}: scene paints over content at scrollY ${y}`).toEqual([]);
+    }
+  });
+
   test('?webgl=off renders the static fallback without a canvas', async ({ page }) => {
     await page.goto('/?webgl=off&intro=skip');
     await expect(scene(page)).toHaveAttribute('data-render-state', 'fallback', { timeout: 15_000 });

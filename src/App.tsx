@@ -3,6 +3,7 @@ import { Loader } from './loader/Loader';
 import { useLoadSequence, type SceneStatus } from './loader/useLoadSequence';
 import { installMotionControllers } from './lib/controllers';
 import { Opening } from './opening/Opening';
+import { SceneHost } from './opening/SceneHost';
 import { SiteHeader } from './opening/SiteHeader';
 import { About, Contact, DetailsProvider, Experience, WorkSequence } from './sections';
 
@@ -21,11 +22,10 @@ export default function App() {
         Skip to work
       </a>
       <span id="top" className="visually-hidden" aria-hidden="true" />
+      <SceneHost status={scene} onReady={onSceneReady} onFallback={onSceneFallback} onFail={onSceneFail} />
       <SiteHeader />
-      <main id="main">
-        <Opening
-          scene={{ status: scene, onReady: onSceneReady, onFallback: onSceneFallback, onFail: onSceneFail }}
-        />
+      <main id="main" className="page">
+        <Opening />
         <DetailsProvider>
           <WorkSequence />
           <Experience />

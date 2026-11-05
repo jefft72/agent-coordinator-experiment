@@ -7,20 +7,6 @@
   font-display: block;
 }
 @font-face {
-  font-family: 'Archivo Condensed';
-  src: url('/fonts/archivo/ArchivoCondensed-Black.woff2') format('woff2');
-  font-weight: 900;
-  font-style: normal;
-  font-display: block;
-}
-@font-face {
-  font-family: 'Archivo Condensed';
-  src: url('/fonts/archivo/ArchivoCondensed-SemiBold.woff2') format('woff2');
-  font-weight: 600;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
   font-family: 'Archivo';
   src: url('/fonts/archivo/Archivo-Regular.woff2') format('woff2');
   font-weight: 400;

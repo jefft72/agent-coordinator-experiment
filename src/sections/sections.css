@@ -54,10 +54,11 @@
 }
 
 .group__heading {
-  font: 900 clamp(28px, 2.5vw, 36px) / 0.86 var(--display);
+  font: 500 var(--group-size) / 1.2 var(--text);
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--paper);
-  padding-bottom: 10px;
+  padding-bottom: 12px;
   border-bottom: 1px solid var(--rule);
 }
 
@@ -172,7 +173,7 @@
 
 .rec__org {
   margin: 0;
-  font: 600 22px / 1.15 var(--display-wide);
+  font: 600 var(--lead-size) / 1.2 var(--text);
   color: var(--paper);
 }
 
@@ -212,7 +213,7 @@
 
 .about__school {
   margin-top: 18px;
-  font: 600 22px / 1.15 var(--display-wide);
+  font: 600 var(--lead-size) / 1.2 var(--text);
   color: var(--paper);
 }
 

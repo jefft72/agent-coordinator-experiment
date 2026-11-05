@@ -20,7 +20,6 @@
   --plane-rule: rgba(10, 11, 13, 0.14);
 
   --display: 'Archivo ExtraCondensed', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
-  --display-wide: 'Archivo Condensed', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
   --text: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
 
   --gutter: 32px;
@@ -31,6 +30,9 @@
   --name-leading: 0.84;
   --heading-size: clamp(40px, 5.2vw, 76px);
   --row-size: clamp(30px, 3.6vw, 52px);
+  /* Supporting type: group labels and record names in the normal-width face. */
+  --group-size: 17px;
+  --lead-size: 20px;
   --body-size: 17px;
   --small-size: 14px;
   --nav-size: 15px;
