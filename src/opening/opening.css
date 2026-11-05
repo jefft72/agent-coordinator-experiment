@@ -147,6 +147,10 @@
   .site-nav__list {
     gap: 12px;
   }
+  /* The smaller name ends sooner, so the identity lines follow it and stay clear of the fold. */
+  .opening__identity {
+    top: 250px;
+  }
 }
 
 /* Everything after the opening paints a solid field, so the Work heading rises
