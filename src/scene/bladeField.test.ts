@@ -62,19 +62,24 @@ describe('bladeField', () => {
     const camera = cameraFor(false, { reveal: 1, fold: 0 });
     const list = samples(false, 1, 0);
     const first = projectToScreen(list[0].position, camera, DESKTOP_ASPECT);
-    // The thin lower end finishes against the name's right edge, above the Work heading (y >= 0.8).
-    expect(first.x).toBeGreaterThan(0.3);
-    expect(first.x).toBeLessThan(0.5);
+    // The thin tail tapers out right of the name, above the Work heading (y >= 0.8).
+    expect(first.x).toBeGreaterThan(0.42);
+    expect(first.x).toBeLessThan(0.58);
     expect(first.y).toBeGreaterThan(0.55);
     expect(first.y).toBeLessThan(0.78);
     const tallest = list.reduce((best, b) => (b.scale[1] > best.scale[1] ? b : best), list[0]);
     const crest = projectToScreen(tallest.position, camera, DESKTOP_ASPECT);
     expect(crest.x).toBeGreaterThan(0.6);
-    expect(crest.y).toBeLessThan(0.35);
-    // Nothing reaches the Work heading region at the bottom of the opening.
+    expect(crest.y).toBeLessThan(0.4);
+    // The return limb comes back left of the crest, behind it, so the fold turns in depth.
+    const last = projectToScreen(list[list.length - 1].position, camera, DESKTOP_ASPECT);
+    expect(last.x).toBeLessThan(crest.x - 0.1);
+    expect(last.depth).toBeGreaterThan(crest.depth + 2);
+    // Nothing reaches the navigation strip or the Work heading region.
     for (const blade of list) {
       const p = projectToScreen(blade.position, camera, DESKTOP_ASPECT);
-      expect(p.y + (blade.scale[1] / 2) * 0.1).toBeLessThan(0.8);
+      expect(p.y).toBeGreaterThan(0.1);
+      expect(p.y).toBeLessThan(0.8);
     }
   });
 
@@ -93,8 +98,10 @@ describe('bladeField', () => {
       };
       const tallest = list.reduce((best, b) => (b.scale[1] > best.scale[1] ? b : best), list[0]);
       expect(facing(tallest)).toBeGreaterThan(0.95);
+      // The tail is edge-on; the return limb shows a dimmer, partly turned face.
       expect(facing(list[0])).toBeLessThan(0.25);
-      expect(facing(list[list.length - 1])).toBeLessThan(0.25);
+      expect(facing(list[list.length - 1])).toBeGreaterThan(0.3);
+      expect(facing(list[list.length - 1])).toBeLessThan(0.9);
     }
   });
 
@@ -149,8 +156,8 @@ describe('bladeField', () => {
   it('varies height and roll smoothly along the sweep', () => {
     const list = samples(false, 1, 0);
     const heights = list.map((b) => b.scale[1]);
-    expect(Math.max(...heights)).toBeGreaterThan(2.4);
-    expect(Math.min(...heights)).toBeLessThan(1.5);
+    expect(Math.max(...heights)).toBeGreaterThan(1.8);
+    expect(Math.min(...heights)).toBeLessThan(1.0);
     for (let i = 1; i < list.length; i++) {
       expect(Math.abs(heights[i] - heights[i - 1])).toBeLessThan(0.08);
     }
