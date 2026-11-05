@@ -1,7 +1,9 @@
 # Jeffrey Tseng, portfolio
 
 A static site built with React, TypeScript, and Vite.
+The page is one native document of five chapters: the opening with Jeffrey Tseng, then Hackathons, Experience, Ventures, and About with Contact.
 The opening is one WebGL scene rendered with react-three-fiber: an abstract sculpture of thin metal plates twisted along a spine that rises to a lit crest and folds back into depth, lit by a graded dome and three authored light shapes.
+On desktop the opening pins with CSS sticky while the Hackathons chapter rises over it; the sculpture folds away over the last part of that handoff and stops rendering once covered.
 Every fact, link, and project detail lives in semantic HTML and remains available without WebGL, without JavaScript animation, and on a keyboard.
 
 ## Local development
@@ -25,7 +27,7 @@ npm run preview:subpath # serve it on http://localhost:4174/agent-coordinator-ex
 
 ```sh
 npm run lint          # eslint and tsc
-npm test              # vitest unit tests: content hygiene, blade field math
+npm test              # vitest unit tests: content model and hygiene, blade field math
 npm run test:browser  # builds both outputs, then Playwright in Google Chrome (channel "chrome")
 npm run check         # lint, unit tests, then browser tests: the same sequence CI runs
 npm run screenshots   # review captures into .context/screens/ (untracked)
@@ -59,10 +61,10 @@ Every action in the workflow is pinned to a release commit SHA with the version 
 - Returning visits in the same session, direct section links such as `/#hackathons`, and `prefers-reduced-motion` bypass the intro.
 - Native document scrolling drives the fold from the opening into Work. There is no scroll hijacking and no pinned section.
 - Pointer movement over the opening causes a local, travelling change in blade alignment that settles when the pointer leaves. Touch devices get the same reveal and scroll transition without the pointer response.
-- Each project row ends in a blade rule: a line of edge-on plates drawn from the same modulation the sculpture uses. Hovering, focusing, or selecting the row turns the plates in that project's own pattern and they settle when the row is left. This works on touch, on the keyboard, without WebGL, and as a still pattern under reduced motion.
-- Each project row has a Details control that opens a native dialog. Escape, the Close control, or the backdrop closes it, and focus returns to the control that opened it.
-- Inside the details, the project stage shows the same folded surface framed on its crest, performing that project's pattern: AnimaLabs resolves scattered bends into one correlated wave, OpenCraft brings four offset bands into alignment, Diffex settles irregular spacing into order, Judi Health redistributes spacing while both ends stay fixed, Purdue Data Mine / RTX sweeps a single arc, UPlate rolls a slow swell. The pattern plays once when the stage opens; Replay runs it again, the Phase slider holds any instant for inspection (arrow keys work), and Reset returns to the composed rest pose. On phones the stage sits behind an explicit Open the study control. Under reduced motion, or without WebGL, every control applies its phase immediately and Replay shows the end state. The stage is labelled Abstract study, its timeline only runs while it is expanded, on screen, and the tab is visible, and every fact and link stays readable without it.
-- While a details dialog is open the opening scene holds its frame, so only one renderer draws at a time.
+- Each hackathon spread has three labelled contribution controls, a tablist with arrow-key, Home, and End support, that reveal one part of the work in a reserved area and highlight the matching steps of a named flow or schematic. The award, ownership sentence, figures, and proof links stay outside the controls.
+- The UPlate gallery shows one real screenshot at a time with previous and next controls that wrap, a counter, and the caption of the current screenshot; all three images stay in the document.
+- The header takes the colour of the chapter under it and marks the current chapter with aria-current; the five destinations are real anchors that land on the chapter heading, cold or warm, under both deployment bases.
+- Reduced motion keeps every chapter and control, drops the handoff transforms and the sculpture fold, and switches states immediately.
 - Section links stop below the fixed header.
 
 Query parameters used by the test suite: `?intro=skip`, `?intro=play`, `?webgl=off`, `?scene=stall`, `?scene=fail`, `?scene=chunk-fail`.
@@ -71,8 +73,6 @@ Query parameters used by the test suite: `?intro=skip`, `?intro=play`, `?webgl=o
 
 `src/scene/bladeField.ts` is pure math shared by the WebGL scene, the SVG fallback, and the unit tests: the spine, plate heights, the twist expressed relative to each plate's face-on pose, the loader's collapsed pose, the scroll fold, and the camera.
 `src/scene/environment.ts` builds the reflection environment from a graded dome and three light shapes whose positions are exported from the field, so the fallback shades its faces from the same lights.
-`src/scene/modulation.ts` holds the six per-project patterns as functions of a phase from 0 to 1. The project stage applies them at full strength; the sculpture's focus response and the inline blade rules apply the same functions at a fifth of the amplitude.
-`src/scene/StageScene.tsx` renders the stage with the opening's geometry, material, and environment through `src/scene/bladeMesh.ts`; `src/scene/StageFallback.tsx` projects the same picture to SVG through `src/scene/faces.ts` when WebGL is unavailable.
 
 ## Fonts
 
