@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { Project } from '../content/types';
+import { useDocumentVisible } from '../lib/useDocumentVisible';
 import { useReducedMotion } from '../lib/useReducedMotion';
 import { webglAvailable } from '../lib/webgl';
 import { SceneErrorBoundary } from '../scene/SceneErrorBoundary';
@@ -10,8 +11,6 @@ import './sections.css';
 const StageScene = lazy(() => import('../scene/StageScene'));
 
 type Mode = 'rest' | 'playing' | 'paused';
-
-export const STAGE_NOTE = 'An abstract interpretation drawn on the opening sculpture. Not a recording of the product.';
 
 export interface ProjectStageProps {
   project: Project;
@@ -25,24 +24,30 @@ export interface ProjectStageProps {
  * pattern from its start, the phase slider holds any instant of it for
  * inspection, and Reset returns to the composed rest pose. Under reduced
  * motion, or without WebGL, every control applies its phase immediately
- * instead of animating, and Replay shows the pattern's end state.
+ * instead of animating, and Replay shows the pattern's end state. The
+ * timeline only advances while the stage is expanded and the document is
+ * visible: a collapsed phone stage begins when it is opened, and a run
+ * interrupted by a hidden tab keeps its phase and resumes when shown.
  */
 export function ProjectStage({ project, compact }: ProjectStageProps) {
   const reduced = useReducedMotion();
+  const documentVisible = useDocumentVisible();
   const [webgl] = useState(() => webglAvailable());
   const [failed, setFailed] = useState(false);
   const immediate = reduced || !webgl || failed;
   const [open, setOpen] = useState(!compact);
+  const visible = open && documentVisible;
   const [phase, setPhase] = useState(() => (immediate ? 1 : 0));
   const [mode, setMode] = useState<Mode>(() => (immediate ? 'paused' : 'playing'));
   const phaseRef = useRef(phase);
   const labelId = useId();
   const sliderId = useId();
 
-  // Play: advance the phase at the pattern's own pace, then hold at the end.
-  // If motion must be immediate (or becomes so mid-run), jump to the end state.
+  // Play: advance the phase at the pattern's own pace while the stage is
+  // visible, then hold at the end. If motion must be immediate (or becomes so
+  // mid-run), jump to the end state.
   useEffect(() => {
-    if (mode !== 'playing') return;
+    if (mode !== 'playing' || !visible) return;
     const { duration } = PATTERNS[project.id];
     let raf = 0;
     let last = performance.now();
@@ -56,7 +61,7 @@ export function ProjectStage({ project, compact }: ProjectStageProps) {
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [mode, immediate, project.id]);
+  }, [mode, immediate, visible, project.id]);
 
   const replay = useCallback(() => {
     phaseRef.current = 0;
@@ -92,7 +97,7 @@ export function ProjectStage({ project, compact }: ProjectStageProps) {
       aria-labelledby={labelId}
     >
       <p className="stage__label label" id={labelId}>
-        Study
+        Abstract study
       </p>
       <p className="stage__study">{project.study}</p>
       {open ? (
@@ -101,7 +106,7 @@ export function ProjectStage({ project, compact }: ProjectStageProps) {
             {webgl && !failed ? (
               <SceneErrorBoundary onFail={fail}>
                 <Suspense fallback={<StageFallback project={project.id} phase={phase} engaged={engaged} compact={compact} />}>
-                  <StageScene project={project.id} phase={phase} engaged={engaged} reduced={reduced} onFail={fail} />
+                  <StageScene project={project.id} phase={phase} engaged={engaged} reduced={reduced || !documentVisible} onFail={fail} />
                 </Suspense>
               </SceneErrorBoundary>
             ) : (
@@ -144,7 +149,6 @@ export function ProjectStage({ project, compact }: ProjectStageProps) {
           Open the study
         </button>
       )}
-      <p className="stage__note">{STAGE_NOTE}</p>
     </section>
   );
 }

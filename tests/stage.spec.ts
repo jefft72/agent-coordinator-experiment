@@ -91,9 +91,9 @@ test.describe('project stage', () => {
     }
     expect(box.width).toBeGreaterThan(300);
     const dialog = detailsDialog(page);
+    await expect(dialog).toContainText('Abstract study');
     await expect(dialog).toContainText(projectById.opencraft.study);
-    await expect(dialog).toContainText('abstract interpretation');
-    await expect(dialog).toContainText('Not a recording of the product');
+    await expect(dialog).not.toContainText('Not a recording');
     for (const sentence of projectById.opencraft.details) await expect(dialog).toContainText(sentence);
     await closeDetails(page);
   });
@@ -190,7 +190,31 @@ test.describe('project stage', () => {
     await closeDetails(page);
   });
 
-  test('mobile: the stage opens from an explicit control, works by touch, and hides again', async ({ page }, testInfo) => {
+  test('a hidden tab pauses the timeline with its phase kept, and it resumes when shown', async ({ page }) => {
+    await openStage(page, 'animalabs');
+    await expect(stage(page)).toHaveAttribute('data-mode', 'playing');
+    await page.waitForTimeout(1_200);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForTimeout(300);
+    const held = await stage(page).getAttribute('data-phase');
+    expect(Number(held)).toBeGreaterThan(0);
+    expect(Number(held)).toBeLessThan(1);
+    await page.waitForTimeout(900);
+    expect(await stage(page).getAttribute('data-phase'), 'the phase should hold while hidden').toBe(held);
+    await expect(stage(page)).toHaveAttribute('data-mode', 'playing');
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect.poll(() => stage(page).getAttribute('data-phase').then(Number)).toBeGreaterThan(Number(held));
+    await expect(stage(page)).toHaveAttribute('data-mode', 'paused', { timeout: 12_000 });
+    await closeDetails(page);
+  });
+
+  test('mobile: the stage opens from an explicit control, starts when opened, works by touch, and hides again', async ({ page }, testInfo) => {
     skipUnlessProject(testInfo, 'mobile');
     const opener = detailsButton(page, 'animalabs');
     await opener.scrollIntoViewIfNeeded();
@@ -198,9 +222,13 @@ test.describe('project stage', () => {
     await expect(detailsDialog(page)).toBeVisible();
     await expect(stage(page)).toHaveAttribute('data-open', 'false');
     await expect(stageView(page)).toHaveCount(0);
+    // Collapsed, the timeline must not run: the study starts when it is opened.
+    await page.waitForTimeout(1_500);
+    await expect(stage(page)).toHaveAttribute('data-phase', '0.00');
     await page.locator('[data-testid="stage-open"]').tap();
     await expect(stage(page)).toHaveAttribute('data-open', 'true');
     await expect(stageView(page)).toBeVisible();
+    await expect.poll(() => stage(page).getAttribute('data-phase').then(Number)).toBeGreaterThan(0);
     await page.locator('[data-testid="stage-replay"]').tap();
     await expect(stage(page)).toHaveAttribute('data-mode', 'playing');
     await page.locator('[data-testid="stage-reset"]').tap();

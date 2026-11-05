@@ -316,7 +316,8 @@ html.details-open {
 .details__inner {
   max-height: 90vh;
   overflow: auto;
-  padding: 40px 48px 48px;
+  /* The top padding belongs to the sticky bar, so it sits flush with the scrollport. */
+  padding: 0 48px 48px;
   font: 400 var(--body-size) / 1.5 var(--text);
 }
 
@@ -331,8 +332,15 @@ html.details-open {
 }
 
 .details__bar {
+  /* The dialog's own header stays put while the body scrolls, so Close is always reachable. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   justify-content: flex-end;
+  margin: 0 -48px;
+  padding: 28px 48px 12px;
+  background: var(--plane);
 }
 .details .details-button {
   text-decoration-color: var(--plane-ink-dim);
@@ -342,7 +350,7 @@ html.details-open {
 }
 
 .details__name {
-  margin-top: 20px;
+  margin-top: 12px;
   font: 900 clamp(44px, 6vw, 72px) / 0.86 var(--display);
   text-transform: uppercase;
 }
@@ -486,12 +494,6 @@ html.details-open {
   margin-top: 12px;
 }
 
-.stage__note {
-  margin-top: 10px;
-  font-size: var(--small-size);
-  color: var(--plane-ink-dim);
-}
-
 /* Mobile: one column, name first. */
 
 @media (max-width: 767px) {
@@ -554,10 +556,14 @@ html.details-open {
   }
   .details__inner {
     max-height: 100dvh;
-    padding: 20px var(--gutter) 40px;
+    padding: 0 var(--gutter) 40px;
+  }
+  .details__bar {
+    margin: 0 calc(-1 * var(--gutter));
+    padding: 20px var(--gutter) 10px;
   }
   .details__name {
-    margin-top: 16px;
+    margin-top: 8px;
   }
   .stage__view {
     height: 240px;

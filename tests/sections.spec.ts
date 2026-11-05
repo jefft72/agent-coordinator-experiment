@@ -198,6 +198,30 @@ test.describe('work sequence', () => {
     await expect(rule).toHaveAttribute('data-state', 'active');
   });
 
+  test('the Close control stays reachable at the bottom of a long details and hands focus back', async ({ page }) => {
+    const project = projectById.animalabs;
+    const dialog = await openDetails(page, project);
+    const inner = dialog.locator('.details__inner');
+    await inner.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    await page.waitForTimeout(300);
+    expect(await inner.evaluate((el) => el.scrollTop), 'the details should have scrolled').toBeGreaterThan(200);
+    const close = dialog.locator('button[data-testid="details-close"]');
+    const box = await requireBox(close);
+    const viewport = page.viewportSize() ?? { width: 0, height: 0 };
+    expect(box.y, 'Close should be within the viewport').toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height, 'Close should be within the viewport').toBeLessThanOrEqual(viewport.height);
+    const covered = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('data-testid'), {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+    });
+    expect(covered, 'Close should be the topmost element at its centre').toBe('details-close');
+    await close.click();
+    await expect(dialog).toBeHidden();
+    await expect(detailsButton(page, project.id)).toBeFocused();
+  });
+
   test('the Close button closes the details', async ({ page }) => {
     const project = projectById.opencraft;
     const dialog = await openDetails(page, project);

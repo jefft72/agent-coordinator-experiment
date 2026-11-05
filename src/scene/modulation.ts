@@ -94,11 +94,13 @@ export function pattern(id: ProjectId, i: number, u: number, phase: number, out:
       return;
     }
     case 'judi': {
-      // Spacing redistributes toward the middle while both ends stay fixed.
+      // Spacing redistributes toward the middle while both ends stay fixed:
+      // every term vanishes at u = 0 and u = 1.
       const s = Math.sin(TAU * u);
+      const centre = Math.sin(Math.PI * u);
       out.u = 0.09 * s * smooth(p);
       out.roll = 0.55 * s * smooth(p);
-      out.push = 0.16 * Math.cos(TAU * u) * smooth(p);
+      out.push = -0.16 * centre * centre * smooth(p);
       return;
     }
     case 'rtx': {
