@@ -35,6 +35,13 @@ Playwright runs isolated headless Chrome from the installed Google Chrome channe
 If Google Chrome is not installed, `npx playwright install --with-deps chrome` installs the stable channel system-wide.
 WebGL tests are serialized on two workers because simultaneous contexts saturate the GPU.
 
+## Dependency overrides
+
+`package.json` overrides `minimatch` to a patched 11.x release under `@typescript-eslint/typescript-estree` only.
+The parser declares `minimatch ^10.2.2`, which https://github.com/advisories/GHSA-g3hv-75wg-m249 affects, so a fresh `npm ci` reports seven moderate development-only findings while `npm audit --omit=dev` reports none.
+The parser's only use is the named `minimatch(filePath, pattern, { dot: true })` call behind `allowDefaultProject`, which 11.x keeps, and ESLint's separate `minimatch` 3.x is not touched.
+Remove the override once `@typescript-eslint/typescript-estree` declares `minimatch` 11.0.1 or newer, then run `npm install` and `npm audit` to confirm the tree stays clean.
+
 ## Deployment
 
 `.github/workflows/pages.yml` runs on every pull request, on every push to `main`, and on manual dispatch.
