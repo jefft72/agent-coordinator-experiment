@@ -1,4 +1,4 @@
-import { Component, useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ACESFilmicToneMapping, PerspectiveCamera, SRGBColorSpace, Vector3 } from 'three';
 import { Blades } from './Blades';
@@ -11,27 +11,6 @@ export interface OpeningSceneProps {
   onFirstFrame: () => void;
   /** Called when the WebGL context cannot be created, throws, or is lost. */
   onFail: (reason: string) => void;
-}
-
-interface BoundaryProps {
-  onFail: (reason: string) => void;
-  children: ReactNode;
-}
-
-class SceneErrorBoundary extends Component<BoundaryProps, { failed: boolean }> {
-  state = { failed: false };
-
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true };
-  }
-
-  componentDidCatch(error: unknown): void {
-    this.props.onFail(error instanceof Error ? error.message : String(error));
-  }
-
-  render(): ReactNode {
-    return this.state.failed ? null : this.props.children;
-  }
 }
 
 function SceneContent({ onFirstFrame, onFail }: OpeningSceneProps) {
@@ -137,9 +116,9 @@ function SceneContent({ onFirstFrame, onFail }: OpeningSceneProps) {
   return <Blades />;
 }
 
+/** The error boundary sits above the lazy import in SceneHost, so a failed chunk or render is caught there. */
 export default function OpeningScene({ onFirstFrame, onFail }: OpeningSceneProps) {
   return (
-    <SceneErrorBoundary onFail={onFail}>
       <Canvas
         dpr={[1, 1.75]}
         frameloop="demand"
@@ -158,6 +137,5 @@ export default function OpeningScene({ onFirstFrame, onFail }: OpeningSceneProps
       >
         <SceneContent onFirstFrame={onFirstFrame} onFail={onFail} />
       </Canvas>
-    </SceneErrorBoundary>
   );
 }

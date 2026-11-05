@@ -1,9 +1,14 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import type { SceneStatus } from '../loader/useLoadSequence';
 import { useMediaQuery } from '../lib/useMediaQuery';
+import { SceneErrorBoundary } from '../scene/SceneErrorBoundary';
 import { SceneFallback } from '../scene/SceneFallback';
 
-const OpeningScene = lazy(() => import('../scene/OpeningScene'));
+const OpeningScene = lazy(() =>
+  new URLSearchParams(window.location.search).get('scene') === 'chunk-fail'
+    ? Promise.reject(new Error('forced by ?scene=chunk-fail'))
+    : import('../scene/OpeningScene'),
+);
 
 export interface SceneHostProps {
   status: SceneStatus;
@@ -31,7 +36,8 @@ function hasWebGL(): boolean {
  * until the WebGL scene reports its first frame, then crossfades out. If
  * WebGL is disabled, unavailable, or fails, the SVG simply remains.
  * `?scene=stall` swallows readiness to exercise the loader deadline;
- * `?scene=fail` forces the failure path.
+ * `?scene=fail` forces the failure path; `?scene=chunk-fail` rejects the
+ * lazy scene chunk, which the boundary turns into the same failure path.
  */
 export function SceneHost({ status, onReady, onFallback, onFail }: SceneHostProps) {
   const compact = useMediaQuery('(max-width: 767px)');
@@ -86,9 +92,11 @@ export function SceneHost({ status, onReady, onFallback, onFail }: SceneHostProp
       </div>
       {showCanvas ? (
         <div className="scene__webgl" data-testid="scene-webgl">
-          <Suspense fallback={null}>
-            <OpeningScene onFirstFrame={handleFirstFrame} onFail={handleFail} />
-          </Suspense>
+          <SceneErrorBoundary onFail={handleFail}>
+            <Suspense fallback={null}>
+              <OpeningScene onFirstFrame={handleFirstFrame} onFail={handleFail} />
+            </Suspense>
+          </SceneErrorBoundary>
         </div>
       ) : null}
     </div>
