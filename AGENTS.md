@@ -9,3 +9,11 @@ Never stage `.context/`, screenshots, browser reports, scratch files, planning d
 Never modify generated files manually or edit CHANGELOG files.
 Use plain hyphens instead of em dashes.
 Put each full sentence on its own physical line when writing long Markdown documents.
+
+## Ownership and coordination
+
+Astra owns architecture and review.
+Claude Code owns implementation, testing, and QA.
+Agents may delegate to same-provider agents as needed, with explicit file ownership for each delegate.
+All agents, including delegates, follow the commit policy above.
+Agents sharing a checkout coordinate staging and serialize commits through the developer lead.
