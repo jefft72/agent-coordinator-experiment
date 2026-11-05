@@ -69,13 +69,17 @@
   grid-template-columns: 38fr 44fr 18fr;
   column-gap: 32px;
   align-items: start;
-  padding: 20px 0 22px;
-  border-bottom: 1px solid var(--rule);
-  transition: border-color 320ms var(--ease-out);
+  padding: 20px 0 0;
 }
-.row:hover,
-.row:focus-within {
-  border-color: var(--rule-strong);
+
+/* The row's rule: a line of edge-on plates that turn in the project's pattern
+   while the row is hovered, focused, or selected. Drawn by BladeRule. */
+.row__rule {
+  grid-column: 1 / -1;
+  display: block;
+  width: 100%;
+  height: 18px;
+  margin-top: 16px;
 }
 
 .row__name {
@@ -435,6 +439,12 @@ html.details-open {
     grid-template-columns: 1fr;
     row-gap: 12px;
     padding: 18px 0 20px;
+  }
+  .row {
+    padding-bottom: 0;
+  }
+  .row__rule {
+    margin-top: 8px;
   }
   .row__facts {
     padding-top: 0;

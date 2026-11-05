@@ -1,6 +1,7 @@
-import type { FocusEvent } from 'react';
+import { useState, type FocusEvent } from 'react';
 import type { Link, Project, ProjectId } from '../content/types';
 import { motion } from '../scene/motion';
+import { BladeRule } from './BladeRule';
 import './sections.css';
 
 const EXTERNAL = /^https?:\/\//;
@@ -28,29 +29,39 @@ export interface ProjectRowProps {
 
 /**
  * One project in the work sequence: name and award or role on the left,
- * summary and figures in the middle, links and Details on the right.
- * Hover and focus hand the project id to the scene through the motion store.
+ * summary and figures in the middle, links and Details on the right, and a
+ * blade rule underneath that responds in the project's own pattern. Hover and
+ * focus activate the rule and hand the project id to the scene through the
+ * motion store.
  */
 export function ProjectRow({ project, onDetails }: ProjectRowProps) {
   const nameId = `project-name-${project.id}`;
   const { award } = project;
+  const [active, setActive] = useState(false);
   // The award proof is shown under the award, so drop it from the general list.
   const links = project.links.filter((link) => link.href !== award?.proof.href);
 
   const focus = () => {
     motion.focus = project.id;
+    setActive(true);
   };
   const blur = (event: FocusEvent<HTMLElement>) => {
-    if (!event.currentTarget.contains(event.relatedTarget)) motion.focus = null;
-  };
-  const leave = () => {
+    if (event.currentTarget.contains(event.relatedTarget)) return;
+    if (event.currentTarget.matches(':hover')) return;
     motion.focus = null;
+    setActive(false);
+  };
+  const leave = (event: { currentTarget: HTMLElement }) => {
+    if (event.currentTarget.contains(document.activeElement)) return;
+    motion.focus = null;
+    setActive(false);
   };
 
   return (
     <article
       className="row"
       data-testid={`project-${project.id}`}
+      data-active={active ? 'true' : 'false'}
       aria-labelledby={nameId}
       onPointerEnter={focus}
       onPointerLeave={leave}
@@ -113,6 +124,8 @@ export function ProjectRow({ project, onDetails }: ProjectRowProps) {
           Details
         </button>
       </div>
+
+      <BladeRule project={project.id} active={active} />
     </article>
   );
 }
