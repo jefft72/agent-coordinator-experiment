@@ -121,10 +121,10 @@ export function Blades() {
   const material = useMemo(
     () =>
       new MeshStandardMaterial({
-        color: new Color('#2a2d33'),
+        color: new Color('#9a9ea4'),
         metalness: 1,
-        roughness: 0.3,
-        envMapIntensity: 1.3,
+        roughness: 0.42,
+        envMapIntensity: 1.0,
         flatShading: false,
       }),
     [],

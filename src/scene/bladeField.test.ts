@@ -29,11 +29,11 @@ describe('bladeField', () => {
   });
 
   it('produces the requested counts', () => {
-    expect(createField({ count: 140, compact: false }).count).toBe(140);
-    expect(createField({ count: 96, compact: true }).count).toBe(96);
-    expect(bladeCount(false)).toBe(140);
-    expect(bladeCount(true)).toBe(96);
-    expect(samples(true, 1, 0)).toHaveLength(96);
+    expect(createField({ count: 112, compact: false }).count).toBe(112);
+    expect(createField({ count: 84, compact: true }).count).toBe(84);
+    expect(bladeCount(false)).toBe(112);
+    expect(bladeCount(true)).toBe(84);
+    expect(samples(true, 1, 0)).toHaveLength(84);
   });
 
   it('progresses from lower-left to upper-right along the sweep', () => {
@@ -58,16 +58,61 @@ describe('bladeField', () => {
     }
   });
 
-  it('keeps the crest in the upper right and the foreground in the lower left on desktop', () => {
+  it('starts beside the name, crests in the upper right, and clears the Work heading on desktop', () => {
     const camera = cameraFor(false, { reveal: 1, fold: 0 });
     const list = samples(false, 1, 0);
     const first = projectToScreen(list[0].position, camera, DESKTOP_ASPECT);
-    expect(first.x).toBeLessThan(0.2);
-    expect(first.y).toBeGreaterThan(0.75);
+    // The thin lower end finishes against the name's right edge, above the Work heading (y >= 0.8).
+    expect(first.x).toBeGreaterThan(0.3);
+    expect(first.x).toBeLessThan(0.5);
+    expect(first.y).toBeGreaterThan(0.55);
+    expect(first.y).toBeLessThan(0.78);
     const tallest = list.reduce((best, b) => (b.scale[1] > best.scale[1] ? b : best), list[0]);
     const crest = projectToScreen(tallest.position, camera, DESKTOP_ASPECT);
-    expect(crest.x).toBeGreaterThan(0.5);
-    expect(crest.y).toBeLessThan(0.45);
+    expect(crest.x).toBeGreaterThan(0.6);
+    expect(crest.y).toBeLessThan(0.35);
+    // Nothing reaches the Work heading region at the bottom of the opening.
+    for (const blade of list) {
+      const p = projectToScreen(blade.position, camera, DESKTOP_ASPECT);
+      expect(p.y + (blade.scale[1] / 2) * 0.1).toBeLessThan(0.8);
+    }
+  });
+
+  it('turns the crest plates to face the camera and the ends edge-on', () => {
+    for (const compact of [false, true]) {
+      const camera = cameraFor(compact, { reveal: 1, fold: 0 });
+      const list = samples(compact, 1, 0);
+      const facing = (b: BladeSample) => {
+        const v = [
+          camera.position[0] - b.position[0],
+          camera.position[1] - b.position[1],
+          camera.position[2] - b.position[2],
+        ];
+        const l = Math.hypot(v[0], v[1], v[2]);
+        return Math.abs((b.normal[0] * v[0] + b.normal[1] * v[1] + b.normal[2] * v[2]) / l);
+      };
+      const tallest = list.reduce((best, b) => (b.scale[1] > best.scale[1] ? b : best), list[0]);
+      expect(facing(tallest)).toBeGreaterThan(0.95);
+      expect(facing(list[0])).toBeLessThan(0.25);
+      expect(facing(list[list.length - 1])).toBeLessThan(0.25);
+    }
+  });
+
+  it('turns every plate toward edge-on when folded', () => {
+    const camera = cameraFor(false, { reveal: 1, fold: 0 });
+    const rest = samples(false, 1, 0);
+    const folded = samples(false, 1, 1);
+    const facing = (b: BladeSample) => {
+      const v = [
+        camera.position[0] - b.position[0],
+        camera.position[1] - b.position[1],
+        camera.position[2] - b.position[2],
+      ];
+      const l = Math.hypot(v[0], v[1], v[2]);
+      return Math.abs((b.normal[0] * v[0] + b.normal[1] * v[1] + b.normal[2] * v[2]) / l);
+    };
+    const mean = (list: BladeSample[]) => list.reduce((s, b) => s + facing(b), 0) / list.length;
+    expect(mean(folded)).toBeLessThan(mean(rest) * 0.5);
   });
 
   it('moves the mean x to the right when folded', () => {

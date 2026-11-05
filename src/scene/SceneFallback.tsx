@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { bladeCount, cameraFor, createField, projectToScreen, sampleBlade, type Vec3 } from './bladeField';
+import { COOL_LIGHT, KEY_LIGHT, bladeCount, cameraFor, createField, projectToScreen, sampleBlade, type Vec3 } from './bladeField';
 import './scene-fallback.css';
 
 interface Face {
@@ -10,9 +10,6 @@ interface Face {
   cool: number;
   depth: number;
 }
-
-const BROAD_LIGHT: Vec3 = [5.5, 7.5, 9];
-const COOL_LIGHT: Vec3 = [-11, 3.5, -4];
 
 function unit(v: Vec3): Vec3 {
   const l = Math.hypot(v[0], v[1], v[2]) || 1;
@@ -65,7 +62,7 @@ function buildFaces(compact: boolean, viewW: number, viewH: number): Face[] {
     const centre = projectToScreen(s.position, camera, aspect);
     faces.push({
       points: pts.join(' '),
-      broad: facing(n, toCamera, BROAD_LIGHT, s.position),
+      broad: facing(n, toCamera, KEY_LIGHT, s.position),
       cool: facing(n, toCamera, COOL_LIGHT, s.position),
       depth: centre.depth,
     });
@@ -96,9 +93,9 @@ export function SceneFallback({ compact }: { compact: boolean }) {
     >
       <defs>
         <linearGradient id="scene-fallback-broad" x1="0.15" y1="0" x2="0.85" y2="1">
-          <stop offset="0" stopColor="#e9ecef" stopOpacity="0.95" />
-          <stop offset="0.55" stopColor="#8e949c" stopOpacity="0.55" />
-          <stop offset="1" stopColor="#3a3e45" stopOpacity="0.1" />
+          <stop offset="0" stopColor="#dfe2e6" stopOpacity="0.9" />
+          <stop offset="0.55" stopColor="#7d838b" stopOpacity="0.5" />
+          <stop offset="1" stopColor="#30343a" stopOpacity="0.1" />
         </linearGradient>
       </defs>
       {faces.map((face, i) => {

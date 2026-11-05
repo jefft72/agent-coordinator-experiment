@@ -29,14 +29,15 @@
 }
 
 /* A rotated stack of panels. Translating a panel along its own y axis moves it
-   perpendicular to the strips, which run along the sculpture's diagonal. */
+   perpendicular to the strips, which run along the sculpture's lower limb
+   (about 33 degrees from horizontal at rest). */
 .intro__panels {
   position: absolute;
   left: 50%;
   top: 50%;
   width: 260vmax;
   height: 260vmax;
-  transform: translate(-50%, -50%) rotate(-22deg);
+  transform: translate(-50%, -50%) rotate(-33deg);
   display: grid;
   grid-template-rows: repeat(8, 1fr);
 }

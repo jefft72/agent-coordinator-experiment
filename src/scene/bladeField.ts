@@ -6,11 +6,14 @@
  * Axes: x right, y up, z toward the camera. Units are world units; the desktop
  * camera sees roughly 11 units across at the depth of the crest.
  *
- * Each blade is a thin slab sliced across a ribbon that follows a Catmull-Rom
+ * Each blade is a thin plate mounted across a spine that follows a Catmull-Rom
  * sweep from the lower-left foreground to the upper-right background. The
- * slab's thin axis (its face normal) starts along the sweep tangent and is
- * rolled about the blade's height axis by a continuously varying angle, so the
- * faces fan through the light as the eye travels along the form.
+ * plate's width runs along the spine, its height runs across it, and the whole
+ * plate is twisted about the spine by a continuously varying angle. Where the
+ * twist turns the faces toward the camera the plates overlap into a broad lit
+ * surface; where it turns them edge-on the form thins to a comb of bright
+ * edges. The spine itself folds back in depth at the crest, so the projected
+ * width and the reflections change together along one continuous form.
  */
 
 export type Vec3 = [number, number, number];
@@ -69,9 +72,13 @@ interface Layout {
   heightWidth: number;
   /** Width at the start and at the end. */
   widths: [number, number];
-  /** Roll about the height axis at the start and the end, degrees. */
-  rollDeg: [number, number];
-  /** Lean of the height axis about the tangent at the start, crest, end, degrees. */
+  /**
+   * Twist of the plate about the spine at the start, the crest, and the end,
+   * in degrees away from face-on to the rest camera: 0 shows the whole face,
+   * +-90 is edge-on, and a small negative value tilts the face up toward the key.
+   */
+  faceDeg: [number, number, number];
+  /** Yaw of the plate about its height axis at the start, crest, end, degrees. */
   leanDeg: [number, number, number];
   depth: number;
   radius: number;
@@ -79,7 +86,7 @@ interface Layout {
     center: Vec3;
     dir: Vec3;
     pitch: number;
-    rollDeg: number;
+    twistDeg: number;
     height: number;
   };
   camera: {
@@ -112,73 +119,82 @@ export interface Field {
   layout: Layout;
 }
 
+/**
+ * Authored light shapes shared by the WebGL environment and the SVG fallback.
+ * The key sits behind and above the camera so the plates that face the viewer
+ * carry its broad reflection; the cool strip sits far left and behind the form.
+ */
+export const KEY_LIGHT: Vec3 = [-1, 7, 30];
+export const COOL_LIGHT: Vec3 = [-13, 3.5, -2];
+export const FILL_LIGHT: Vec3 = [11, -1, 7];
+
 const DEG = Math.PI / 180;
 const ARC_SAMPLES = 256;
 
 const DESKTOP: Layout = {
   points: [
-    [-7.4, -4.9, 5.2],
-    [-3.3, -3.9, 2.8],
-    [0.9, -0.9, 0.0],
-    [4.4, 2.0, -2.6],
-    [8.6, 3.5, -5.6],
+    [-0.3, -0.9, 2.4],
+    [1.5, -0.3, 1.4],
+    [3.6, 1.4, 0.0],
+    [5.0, 3.4, -1.6],
+    [3.4, 5.8, -5.0],
   ],
   crest: 0.6,
-  density: 0.9,
-  densityWidth: 0.22,
-  heights: [1.4, 2.6, 1.2],
-  heightWidth: 0.26,
-  widths: [0.22, 0.16],
-  rollDeg: [-35, 25],
-  leanDeg: [-14, 2, 16],
-  depth: 0.035,
-  radius: 0.012,
+  density: 0.7,
+  densityWidth: 0.2,
+  heights: [0.9, 3.5, 1.5],
+  heightWidth: 0.3,
+  widths: [0.14, 0.2],
+  faceDeg: [88, 0, -94],
+  leanDeg: [-8, 0, 14],
+  depth: 0.04,
+  radius: 0.008,
   collapsed: {
-    center: [0.6, -0.6, 0.0],
-    dir: [0.78, 0.33, -0.53],
-    pitch: 0.06,
-    rollDeg: -4,
-    height: 1.9,
+    center: [1.6, -0.2, 0.0],
+    dir: [0.6, 0.62, -0.5],
+    pitch: 0.075,
+    twistDeg: 0,
+    height: 2.0,
   },
   camera: {
-    rest: { position: [0.2, 0.9, 12.4], target: [1.0, -0.35, 0.0], fov: 32 },
-    collapsed: { position: [-4.2, -1.6, 7.6], target: [1.2, -0.3, -0.6] },
+    rest: { position: [0.1, 0.8, 12.4], target: [0.9, -0.2, 0.0], fov: 32 },
+    collapsed: { position: [-3.0, -0.9, 8.4], target: [1.4, -0.1, -0.4] },
     foldDrift: [0.9, 0.1, 0.0],
   },
-  fold: { shift: 3.6, compress: 0.32, lift: 1.6, edgeOn: 0.85 },
+  fold: { shift: 3.8, compress: 0.34, lift: 1.2, edgeOn: 0.9 },
 };
 
 const COMPACT: Layout = {
   points: [
-    [-4.2, -6.4, 4.4],
-    [-2.0, -4.6, 2.4],
-    [0.3, -2.4, 0.4],
-    [2.2, -0.4, -1.6],
-    [4.6, 0.9, -4.2],
+    [-0.7, -2.9, 1.6],
+    [0.5, -1.7, 0.9],
+    [1.5, -0.4, -0.2],
+    [2.3, 1.0, -1.6],
+    [2.7, 3.2, -4.2],
   ],
-  crest: 0.62,
-  density: 0.9,
-  densityWidth: 0.22,
-  heights: [1.3, 2.4, 1.1],
-  heightWidth: 0.26,
-  widths: [0.22, 0.16],
-  rollDeg: [-35, 25],
-  leanDeg: [-12, 2, 14],
-  depth: 0.035,
-  radius: 0.012,
+  crest: 0.6,
+  density: 0.7,
+  densityWidth: 0.2,
+  heights: [0.7, 2.1, 1.0],
+  heightWidth: 0.3,
+  widths: [0.12, 0.16],
+  faceDeg: [88, 0, -94],
+  leanDeg: [-6, 0, 10],
+  depth: 0.04,
+  radius: 0.008,
   collapsed: {
-    center: [0.1, -2.4, 0.0],
-    dir: [0.62, 0.45, -0.64],
-    pitch: 0.06,
-    rollDeg: -4,
-    height: 1.8,
+    center: [0.4, -0.8, 0.0],
+    dir: [0.5, 0.72, -0.48],
+    pitch: 0.07,
+    twistDeg: 0,
+    height: 1.7,
   },
   camera: {
-    rest: { position: [0.0, 0.2, 11.2], target: [0.4, -1.9, 0.0], fov: 40 },
-    collapsed: { position: [-3.2, -3.6, 6.4], target: [0.6, -1.9, -0.6] },
+    rest: { position: [0.0, 0.4, 11.6], target: [0.3, -0.9, 0.0], fov: 40 },
+    collapsed: { position: [-2.4, -1.2, 7.6], target: [0.6, -0.8, -0.4] },
     foldDrift: [0.5, 0.1, 0.0],
   },
-  fold: { shift: 2.0, compress: 0.32, lift: 1.4, edgeOn: 0.85 },
+  fold: { shift: 2.2, compress: 0.34, lift: 1.0, edgeOn: 0.9 },
 };
 
 // --- small vector helpers (allocation free where it matters) -------------------
@@ -343,17 +359,17 @@ function heightAt(layout: Layout, u: number): number {
   return base + peak * bump(u, layout.crest, layout.heightWidth);
 }
 
-function rollAt(layout: Layout, u: number): number {
-  return lerp(layout.rollDeg[0], layout.rollDeg[1], smootherstep(u)) * DEG;
+function threePoint(values: [number, number, number], crest: number, u: number): number {
+  const [a, b, c] = values;
+  return u < crest ? lerp(a, b, smootherstep(u / crest)) : lerp(b, c, smootherstep((u - crest) / (1 - crest)));
+}
+
+function faceAt(layout: Layout, u: number): number {
+  return threePoint(layout.faceDeg, layout.crest, u) * DEG;
 }
 
 function leanAt(layout: Layout, u: number): number {
-  const [a, b, c] = layout.leanDeg;
-  const deg =
-    u < layout.crest
-      ? lerp(a, b, smootherstep(u / layout.crest))
-      : lerp(b, c, smootherstep((u - layout.crest) / (1 - layout.crest)));
-  return deg * DEG;
+  return threePoint(layout.leanDeg, layout.crest, u) * DEG;
 }
 
 // --- public API ---------------------------------------------------------------
@@ -443,11 +459,17 @@ const cSide: Vec3 = [0, 0, 0];
 const cNormal: Vec3 = [0, 0, 0];
 const cDir: Vec3 = [0, 0, 0];
 
-/** Builds the (side, up, normal) basis for a tangent, lean, and roll. */
+/**
+ * Builds the (side, up, normal) basis of a plate on the spine. The plate's
+ * width axis follows the tangent, its height axis starts as the world up
+ * projected across the tangent, and the whole plate is twisted about the
+ * tangent; the lean then yaws the plate about its own height axis so the
+ * edges fan slightly instead of staying parallel.
+ */
 function frameFor(
   tangent: Vec3,
   lean: number,
-  roll: number,
+  twist: number,
   up: Vec3,
   bi: Vec3,
   side: Vec3,
@@ -457,13 +479,14 @@ function frameFor(
   const d = dot(WORLD_UP, tangent);
   set(up, WORLD_UP[0] - tangent[0] * d, WORLD_UP[1] - tangent[1] * d, WORLD_UP[2] - tangent[2] * d);
   normalize(up);
-  rotateAbout(up, tangent, lean);
-  cross(bi, up, tangent);
+  rotateAbout(up, tangent, twist);
+  // bi is the plate normal before the lean: perpendicular to both tangent and height.
+  cross(bi, tangent, up);
   normalize(bi);
-  const c = Math.cos(roll);
-  const s = Math.sin(roll);
-  set(side, c * bi[0] + s * tangent[0], c * bi[1] + s * tangent[1], c * bi[2] + s * tangent[2]);
-  set(normal, -s * bi[0] + c * tangent[0], -s * bi[1] + c * tangent[1], -s * bi[2] + c * tangent[2]);
+  const c = Math.cos(lean);
+  const s = Math.sin(lean);
+  set(side, c * tangent[0] + s * bi[0], c * tangent[1] + s * bi[1], c * tangent[2] + s * bi[2]);
+  set(normal, -s * tangent[0] + c * bi[0], -s * tangent[1] + c * bi[1], -s * tangent[2] + c * bi[2]);
 }
 
 /**
@@ -480,21 +503,35 @@ export function sampleBlade(field: Field, i: number, params: SampleParams, out: 
 
   // Rest pose on the sweep.
   evalCurve(layout.points, lookupT(field, u), sPos, sTan);
-  let roll = rollAt(layout, u) + extraRoll;
-  const lean = leanAt(layout, u);
   let height = heightAt(layout, u);
   const width = lerp(layout.widths[0], layout.widths[1], u);
 
+  // Face-on reference. The spine runs into depth, so a plate mounted across it
+  // can only face the camera with both a twist about the spine and a yaw about
+  // its own height axis. Solve both for the rest camera; the layout's face and
+  // lean angles are offsets from that pose, so the same numbers mean the same
+  // thing all along the curving spine.
+  frameFor(sTan, 0, 0, sUp, sBi, sSide, sNormal);
+  const cam = layout.camera.rest.position;
+  set(sView, cam[0] - sPos[0], cam[1] - sPos[1], cam[2] - sPos[2]);
+  normalize(sView);
+  const along = dot(sView, sTan);
+  const acrossBi = dot(sView, sBi);
+  const acrossUp = dot(sView, sUp);
+  const faceTwist = Math.atan2(-acrossUp, acrossBi);
+  const faceLean = Math.atan2(-along, Math.hypot(acrossBi, acrossUp));
+  const faceOffset = faceAt(layout, u);
+  let roll = faceTwist + faceOffset + extraRoll;
+  // The compensating yaw fades out as the plate turns edge-on, so +-90 is truly edge-on.
+  let lean = faceLean * Math.cos(faceOffset) + leanAt(layout, u);
+
   if (fold > 0) {
-    // Rotate toward edge-on for the rest camera, whichever direction is nearer.
-    const cam = layout.camera.rest.position;
-    set(sView, sPos[0] - cam[0], sPos[1] - cam[1], sPos[2] - cam[2]);
-    normalize(sView);
-    frameFor(sTan, lean, 0, sUp, sBi, sSide, sNormal);
-    const edge = Math.atan2(dot(sTan, sView), dot(sBi, sView));
+    // Twist toward edge-on, whichever side is nearer, and let the yaw go.
+    const edge = faceTwist + Math.PI / 2;
     let delta = edge - roll;
     delta = delta - Math.PI * Math.round(delta / Math.PI);
     roll += delta * fold * layout.fold.edgeOn;
+    lean *= 1 - fold * layout.fold.edgeOn;
     // Compress toward the right end, slide right, lift the left end.
     const end = layout.points[layout.points.length - 1];
     const squeeze = 1 - layout.fold.compress * fold;
@@ -518,7 +555,7 @@ export function sampleBlade(field: Field, i: number, params: SampleParams, out: 
     set(cDir, c.dir[0], c.dir[1], c.dir[2]);
     normalize(cDir);
     set(cPos, c.center[0] + cDir[0] * offset, c.center[1] + cDir[1] * offset, c.center[2] + cDir[2] * offset);
-    frameFor(cDir, 0, c.rollDeg * DEG + extraRoll, cUp, cBi, cSide, cNormal);
+    frameFor(cDir, 0, c.twistDeg * DEG + extraRoll, cUp, cBi, cSide, cNormal);
     quatFromBasis(sQuatB, cSide, cUp, cNormal);
     slerp(out.quaternion, sQuatB, sQuatA, reveal);
     set(out.position, lerp(cPos[0], sPos[0], reveal), lerp(cPos[1], sPos[1], reveal), lerp(cPos[2], sPos[2], reveal));
@@ -613,5 +650,5 @@ export function projectToScreen(
 
 /** Blade count the scene uses for each layout. */
 export function bladeCount(compact: boolean): number {
-  return compact ? 96 : 140;
+  return compact ? 84 : 112;
 }

@@ -1,5 +1,6 @@
 import {
   BackSide,
+  BufferAttribute,
   Color,
   Mesh,
   MeshBasicMaterial,
@@ -10,14 +11,19 @@ import {
   type Texture,
   type WebGLRenderer,
 } from 'three';
+import { COOL_LIGHT, FILL_LIGHT, KEY_LIGHT } from './bladeField';
 
 /**
- * Authored light-shape environment: a near-black enclosure, one broad warm
- * white rectangle, one narrow cool strip, and a faint fill. No external HDR.
- * The light placement is derived from where the blade faces reflect the
- * camera: the broad light sits up-right-front so the fanned faces around the
- * crest carry one soft highlight, and the cool strip sits far left-back so it
- * lands on the bevels and the leaning faces of the foreground.
+ * Authored light-shape environment, prefiltered once with PMREM. No external HDR.
+ *
+ * The enclosure is a graded dome: dim grey overhead falling to black below the
+ * horizon, so every satin face carries some tone and faces turned downward
+ * read as the dark recess. Three light shapes sit on top of it:
+ * - a broad white key behind and above the camera, which the plates sweep
+ *   through as the twist turns their faces toward the viewer;
+ * - a narrow cool strip far to the left and behind, which lands on the plate
+ *   edges and the faces that twist away from the key;
+ * - a faint warm fill on the right, so the faces turned right are not pure black.
  */
 export interface SceneEnvironment {
   texture: Texture;
@@ -28,16 +34,36 @@ function emissive(hex: string, intensity: number): MeshBasicMaterial {
   return new MeshBasicMaterial({ color: new Color(hex).multiplyScalar(intensity) });
 }
 
+function gradedDome(radius: number): { geometry: SphereGeometry; material: MeshBasicMaterial } {
+  const geometry = new SphereGeometry(radius, 32, 24);
+  const positions = geometry.getAttribute('position');
+  const colors = new Float32Array(positions.count * 3);
+  const top = new Color('#5a5e66');
+  const horizon = new Color('#24272c');
+  const floor = new Color('#050506');
+  const c = new Color();
+  for (let i = 0; i < positions.count; i++) {
+    const y = positions.getY(i) / radius;
+    if (y >= 0) c.copy(horizon).lerp(top, Math.pow(y, 0.8));
+    else c.copy(horizon).lerp(floor, Math.pow(-y, 0.6));
+    colors[i * 3] = c.r;
+    colors[i * 3 + 1] = c.g;
+    colors[i * 3 + 2] = c.b;
+  }
+  geometry.setAttribute('color', new BufferAttribute(colors, 3));
+  const material = new MeshBasicMaterial({ vertexColors: true, side: BackSide });
+  return { geometry, material };
+}
+
 export function createEnvironment(renderer: WebGLRenderer): SceneEnvironment {
   const scene = new Scene();
   const geometries: { dispose: () => void }[] = [];
   const materials: { dispose: () => void }[] = [];
 
-  const enclosureGeometry = new SphereGeometry(40, 24, 12);
-  const enclosureMaterial = new MeshBasicMaterial({ color: new Color('#101216').multiplyScalar(0.55), side: BackSide });
-  geometries.push(enclosureGeometry);
-  materials.push(enclosureMaterial);
-  scene.add(new Mesh(enclosureGeometry, enclosureMaterial));
+  const dome = gradedDome(40);
+  geometries.push(dome.geometry);
+  materials.push(dome.material);
+  scene.add(new Mesh(dome.geometry, dome.material));
 
   const addLight = (w: number, h: number, hex: string, intensity: number, position: [number, number, number]) => {
     const geometry = new PlaneGeometry(w, h);
@@ -50,15 +76,12 @@ export function createEnvironment(renderer: WebGLRenderer): SceneEnvironment {
     scene.add(mesh);
   };
 
-  // Broad warm-white reflection: up, right of centre, in front.
-  addLight(6, 2.4, '#fff8ee', 5, [5.5, 7.5, 9]);
-  // Narrow cool strip: far left, slightly above, behind the form.
-  addLight(0.5, 7, '#cfe0ff', 3, [-11, 3.5, -4]);
-  // Faint fill from below-left-front so the undersides are not pure black.
-  addLight(3, 3, '#dfe4ea', 0.35, [-5, -8, 7]);
+  addLight(22, 12, '#ffffff', 3.2, KEY_LIGHT);
+  addLight(0.7, 12, '#d6e4ff', 6, COOL_LIGHT);
+  addLight(5, 5, '#e9e2d6', 0.6, FILL_LIGHT);
 
   const pmrem = new PMREMGenerator(renderer);
-  const target = pmrem.fromScene(scene, 0.02, 0.1, 100);
+  const target = pmrem.fromScene(scene, 0.04, 0.1, 100);
   pmrem.dispose();
   for (const g of geometries) g.dispose();
   for (const m of materials) m.dispose();
