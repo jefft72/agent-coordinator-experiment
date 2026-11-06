@@ -82,6 +82,23 @@ export function contrastRatio(foreground: string, background: string): number {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
 }
 
+/**
+ * Contrast of text as it is actually seen: the colour's alpha and the element's
+ * opacity are composited over the background before the ratio is measured.
+ */
+export function compositedContrast(foreground: string, background: string, opacity = 1): number {
+  const parse = (color: string) => {
+    const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?/);
+    if (!match) throw new Error(`unparsable colour ${color}`);
+    return { rgb: [Number(match[1]), Number(match[2]), Number(match[3])], alpha: match[4] === undefined ? 1 : Number(match[4]) };
+  };
+  const text = parse(foreground);
+  const field = parse(background);
+  const coverage = text.alpha * opacity;
+  const seen = text.rgb.map((channel, i) => Math.round(channel * coverage + field.rgb[i] * (1 - coverage)));
+  return contrastRatio(`rgb(${seen.join(', ')})`, `rgb(${field.rgb.join(', ')})`);
+}
+
 /** Skips the current test unless it runs in the named project. */
 export function skipUnlessProject(testInfo: TestInfo, ...names: string[]): void {
   test.skip(!names.includes(testInfo.project.name), `${names.join(' or ')} project only`);

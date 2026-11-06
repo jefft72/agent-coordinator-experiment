@@ -1,7 +1,10 @@
 /* Header: small functional navigation, fixed, no containers. The field colour
    runs solid behind the text line and fades out just below it, so content
    scrolling underneath stays legible without a visible bar. The colour follows
-   the zone under the header, so it reads as part of each chapter's surface. */
+   the zone under the header, so it reads as part of each chapter's surface.
+   The palette is never transitioned: field and type switch together on the
+   zone change, because easing ink-on-paper into paper-on-forest passes
+   through grey on grey. Only the links' dimming and underline ease. */
 .site-header {
   position: fixed;
   left: 0;
@@ -17,7 +20,6 @@
   background-color: var(--zone-field);
   -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 62px, transparent 84px);
   mask-image: linear-gradient(to bottom, #000 0, #000 62px, transparent 84px);
-  transition: background-color 320ms var(--ease-out), color 320ms var(--ease-out);
   pointer-events: none;
 }
 .site-header > * {
@@ -34,20 +36,22 @@
   display: flex;
   gap: 28px;
 }
+/* Inactive links are dimmed with opacity rather than a translucent colour, so
+   their colour is the zone's and only the dimming eases. */
 .site-nav__link {
   display: inline-block;
   line-height: 38px;
   text-decoration: none;
-  color: var(--zone-paper-dim);
+  opacity: 0.62;
   border-bottom: 1px solid transparent;
-  transition: color 240ms var(--ease-out), border-color 240ms var(--ease-out);
+  transition: opacity 240ms var(--ease-out), border-color 240ms var(--ease-out);
 }
 .site-nav__link:hover,
 .site-nav__link:focus-visible {
-  color: var(--zone-paper);
+  opacity: 1;
 }
 .site-nav__link[aria-current='true'] {
-  color: var(--zone-paper);
+  opacity: 1;
   border-bottom-color: currentColor;
 }
 .site-header :focus-visible {

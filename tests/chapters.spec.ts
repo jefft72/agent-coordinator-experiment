@@ -6,6 +6,7 @@ import {
   FORBIDDEN_TEXT,
   article,
   chapter,
+  compositedContrast,
   contrastRatio,
   contributionPanel,
   contributionTab,
@@ -540,14 +541,19 @@ test.describe('chapters', () => {
       const atBottom = await page.evaluate(() => Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight - 1);
       const accepted = id === 'contact' && atBottom ? /^#(about|contact)$/ : new RegExp(`^#${id}$`);
       await expect(current(), `current link at #${id}`).toHaveAttribute('href', accepted);
-      // The header colour transitions over 320ms; sample once it has settled.
+      // The current link's dimming eases over 240ms; sample every link once it has settled.
       await page.waitForTimeout(450);
       const sample = await page.evaluate(() => {
         const head = document.querySelector('header[data-testid="site-header"]') as HTMLElement;
-        const link = head.querySelector('a[aria-current="true"]') as HTMLElement;
-        return { background: getComputedStyle(head).backgroundColor, link: getComputedStyle(link).color, zone: document.documentElement.dataset.zone };
+        const links = Array.from(head.querySelectorAll<HTMLElement>('a')).map((link) => {
+          const style = getComputedStyle(link);
+          return { href: link.getAttribute('href') ?? '', color: style.color, opacity: Number.parseFloat(style.opacity) };
+        });
+        return { background: getComputedStyle(head).backgroundColor, links, zone: document.documentElement.dataset.zone };
       });
-      expect(contrastRatio(sample.link, sample.background), `${id}: ${sample.link} on ${sample.background}`).toBeGreaterThanOrEqual(4.5);
+      for (const link of sample.links) {
+        expect(compositedContrast(link.color, sample.background, link.opacity), `${id}: ${link.href} ${link.color} at opacity ${link.opacity} on ${sample.background}`).toBeGreaterThanOrEqual(4.5);
+      }
       if (id === 'experience') {
         expect(sample.zone).toBe('experience');
         expectNear(sample.background, [236, 235, 230]);
@@ -557,6 +563,56 @@ test.describe('chapters', () => {
     await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     await waitForScrollIdle(page, 200);
     await expect(current()).toHaveCount(0);
+  });
+
+  test('the header palette stays readable on every frame of a zone change', async ({ page }) => {
+    // Land on Experience, the one light surface, so the next boundary flips the header from ink on paper to paper on forest.
+    await page.locator('#experience').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
+    await waitForScrollIdle(page, 200);
+    await expect.poll(() => page.evaluate(() => document.documentElement.dataset.zone)).toBe('experience');
+    await page.waitForTimeout(450);
+    await page.mouse.move(page.viewportSize()!.width / 2, page.viewportSize()!.height / 2);
+
+    const crossBoundary = async (delta: number, from: string) => {
+      // Sample every link against the header background on each animation frame while a native wheel crosses the boundary.
+      await page.evaluate(() => {
+        const head = document.querySelector('header[data-testid="site-header"]') as HTMLElement;
+        const links = Array.from(head.querySelectorAll<HTMLElement>('a'));
+        const frames: { zone: string; background: string; links: { href: string; color: string; opacity: number }[] }[] = [];
+        const started = performance.now();
+        const tick = () => {
+          frames.push({
+            zone: document.documentElement.dataset.zone ?? '',
+            background: getComputedStyle(head).backgroundColor,
+            links: links.map((link) => {
+              const style = getComputedStyle(link);
+              return { href: link.getAttribute('href') ?? '', color: style.color, opacity: Number.parseFloat(style.opacity) };
+            }),
+          });
+          if (performance.now() - started < 900) requestAnimationFrame(tick);
+        };
+        (window as unknown as { __headerFrames: typeof frames }).__headerFrames = frames;
+        requestAnimationFrame(tick);
+      });
+      await page.mouse.wheel(0, delta);
+      await page.waitForTimeout(1000);
+      const frames = await page.evaluate(() => (window as unknown as { __headerFrames: { zone: string; background: string; links: { href: string; color: string; opacity: number }[] }[] }).__headerFrames);
+      const zones = new Set(frames.map((frame) => frame.zone));
+      expect(zones.size, `the wheel from ${from} crossed a zone boundary (${[...zones].join(', ')})`).toBeGreaterThan(1);
+      frames.forEach((frame, index) => {
+        for (const link of frame.links) {
+          const ratio = compositedContrast(link.color, frame.background, link.opacity);
+          expect(ratio, `frame ${index} (${frame.zone}): ${link.href} ${link.color} at opacity ${link.opacity} on ${frame.background}`).toBeGreaterThanOrEqual(4.5);
+        }
+      });
+      return [...zones];
+    };
+
+    const up = await crossBoundary(-240, 'experience');
+    expect(up[up.length - 1]).toBe('opencraft');
+    await waitForScrollIdle(page, 200);
+    const down = await crossBoundary(240, 'opencraft');
+    expect(down[down.length - 1]).toBe('experience');
   });
 
   test('clicking the header links lands each heading below the fixed header', async ({ page }) => {

@@ -34,7 +34,6 @@
   /* Header colours follow the zone under it; set on html by the zone tracker. */
   --zone-field: var(--field);
   --zone-paper: var(--paper);
-  --zone-paper-dim: var(--paper-dim);
 
   --display: 'Archivo ExtraCondensed', 'Archivo', 'Helvetica Neue', Arial, sans-serif;
   --text: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
@@ -75,7 +74,6 @@ html[data-zone='opencraft'] {
 html[data-zone='experience'] {
   --zone-field: var(--paper-field);
   --zone-paper: var(--ink);
-  --zone-paper-dim: var(--ink-dim);
 }
 html[data-zone='about'] {
   --zone-field: var(--quiet);
