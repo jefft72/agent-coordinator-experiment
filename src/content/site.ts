@@ -146,7 +146,7 @@ const opencraft: Project = {
     steps: [
       { id: 'agents', label: 'Minecraft agents', note: 'take jobs, report state, write memory' },
       { id: 'postgres', label: 'Supabase Postgres', note: 'jobs and agent state' },
-      { id: 'realtime', label: 'Realtime', note: 'changes pushed to every agent' },
+      { id: 'realtime', label: 'Realtime', note: 'shared state updates' },
       { id: 'pgvector', label: 'pgvector', note: 'shared memory' },
       { id: 'harness', label: 'Integration harness', note: 'job contention, memory writes, chat handoff' },
     ],
@@ -234,7 +234,7 @@ const rtx: Project = {
       id: 'trajectory',
       label: 'Trajectory system',
       body: [
-        'The system plans trajectories for unmanned aircraft and avoids obstacles in real time as the airspace changes.',
+        'I’m developing the system that plans trajectories for unmanned aircraft and avoids obstacles in real time as the airspace changes.',
         'Raytheon engineers mentor the project’s work on mission-critical software.',
       ],
       steps: ['path', 'obstacle'],
