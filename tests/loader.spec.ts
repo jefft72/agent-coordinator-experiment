@@ -97,6 +97,11 @@ test.describe('loader', () => {
     await waitForRenderState(page, ['failed']);
     await expect(scene(page).locator('[data-testid="scene-fallback"]')).toBeVisible();
     await expect(page.locator('h1#name')).toBeVisible();
+    // The opening still fills the first viewport, and Hackathons is reachable by scrolling.
+    const viewport = page.viewportSize() ?? { width: 0, height: 0 };
+    const chapterTop = (await page.locator('section#hackathons').boundingBox())?.y ?? 0;
+    expect(chapterTop, 'no chapter peeks into the first viewport').toBeGreaterThanOrEqual(viewport.height);
+    await page.locator('#hackathons').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
     await expectInViewport(page.locator('[data-testid="chapter-label-hackathons"]'));
   });
 

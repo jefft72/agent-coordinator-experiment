@@ -66,13 +66,17 @@
   z-index: 1;
 }
 
-/* Opening region. Transparent, so the scene shows through only here. Its
-   height leaves the first chapter's label row inside the first viewport, so
-   the next chapter announces itself before anyone scrolls. */
+/* Opening region. Transparent, so the scene shows through only here. It is
+   one full viewport, measured at the largest viewport size, so the first
+   chapter never shows at rest: when phone browser chrome collapses and the
+   viewport grows, the newly visible band is the opening's own quiet lower
+   margin rather than a preview of the plum surface. Short screens keep a
+   floor so the name and the lines never collide. */
 .opening {
   position: relative;
   z-index: 0;
-  height: max(560px, calc(100svh - var(--announce)));
+  height: max(560px, 100vh);
+  height: max(560px, 100lvh);
 }
 
 /* Desktop handoff: the opening pins while the first chapter rises over it.
@@ -121,7 +125,7 @@
 .scene[data-render-state='ready'] .scene__fallback {
   opacity: 0;
 }
-/* The static composition does not fold, so it steps aside with the chapter instead. */
+/* The static poster does not turn, so it steps aside with the chapter instead. */
 .scene:not([data-render-state='ready']) .scene__fallback {
   transform: translateX(calc(var(--fold, 0) * 24vw));
   opacity: calc(1 - var(--fold, 0));
@@ -160,12 +164,12 @@
 }
 
 /* The identity plane recedes ahead of the chapter. The chapter's edge rises
-   from the opening's own height, 56px under the name's baseline at rest, so
+   from the bottom of the viewport, 56px under the name's baseline at rest, so
    the name and the lines lift at nearly the scroll speed while the name
    shrinks toward its baseline: the edge rides under the baseline and never
    cuts through the glyphs before the name has faded. The lines fade first,
-   the name from the middle of the handoff, and the sculpture folds away in
-   between.
+   the name from the middle of the handoff, and the shells close and turn
+   away in between.
    The chapter title lifts a little faster than its surface, so it arrives
    rather than being carried. Scroll-controlled, so it is switched off under
    reduced motion and on phones, where the opening scrolls. */
@@ -195,7 +199,8 @@
     gap: 14px;
   }
   .opening {
-    height: max(520px, calc(100svh - var(--announce)));
+    height: max(640px, 100vh);
+    height: max(640px, 100lvh);
   }
   .opening__identity {
     top: 282px;

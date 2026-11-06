@@ -310,12 +310,17 @@
     transform: translateY(calc((1 - var(--takeover, 1)) * var(--travel, 12vh)));
     opacity: var(--takeover, 1);
   }
+  /* A plane that is read as it travels: it never drops below half opacity,
+     so the motion is the travel, not a fade. */
+  .plane--solid {
+    opacity: calc(0.5 + 0.5 * var(--takeover, 1));
+  }
   /* The media plane of the chapter beneath sinks back as the next surface
      covers it. Only media recedes: prose, awards, controls, and links stay
      fully opaque and in place while they are still being read. */
   .recedes {
     transform-origin: 50% 100%;
-    transform: translateY(calc(var(--covered, 0) * -4vh)) scale(calc(1 - var(--covered, 0) * 0.06));
+    transform: translateY(calc(var(--covered, 0) * -6vh)) scale(calc(1 - var(--covered, 0) * 0.08));
   }
 }
 

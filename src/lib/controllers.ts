@@ -1,4 +1,4 @@
-import { FOLD_END, FOLD_START, motion } from '../scene/motion';
+import { FOLD_END, FOLD_START, motion, touchMotion } from '../scene/motion';
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -18,9 +18,11 @@ export type HandoffState = 'rest' | 'moving' | 'done';
  * rises over the pinned opening at scroll speed, so the opening is covered
  * exactly when the page has scrolled its height. Over that distance the
  * name and identity recede (CSS, from --handoff and --handoff-px) ahead of
- * the rising surface, and the sculpture folds out of the reading plane
+ * the rising surface, and the shells close and turn out of the reading plane
  * between FOLD_START and FOLD_END. Once covered, the scene stops rendering
- * and the opening is hidden until the reader scrolls back.
+ * and the opening is hidden until the reader scrolls back. Every write is
+ * followed by touchMotion so the demand renderer draws exactly one frame per
+ * change and then rests.
  */
 export function installMotionControllers(): () => void {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -54,6 +56,7 @@ export function installMotionControllers(): () => void {
       root.dataset.handoff = state;
     }
     publishActive();
+    touchMotion();
   };
 
   const onPointerMove = (event: PointerEvent) => {
@@ -61,9 +64,11 @@ export function installMotionControllers(): () => void {
     motion.pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
     motion.pointer.y = -((event.clientY / window.innerHeight) * 2 - 1);
     motion.pointer.active = true;
+    touchMotion();
   };
   const onPointerLeave = () => {
     motion.pointer.active = false;
+    touchMotion();
   };
   const onReduced = (event: MediaQueryListEvent) => {
     motion.reducedMotion = event.matches;

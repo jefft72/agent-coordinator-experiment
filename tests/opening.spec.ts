@@ -25,7 +25,7 @@ import {
 } from './helpers';
 
 test.describe('opening', () => {
-  test('name, identity, nav, and the Hackathons announcement are present', async ({ page }, testInfo) => {
+  test('name, identity, and nav are present, and the opening fills the first viewport with no chapter peek', async ({ page }) => {
     await gotoAndSettle(page, '/?intro=skip');
     await expect(htmlRoot(page)).toHaveAttribute('data-load-state', 'bypassed');
 
@@ -44,14 +44,20 @@ test.describe('opening', () => {
       await expect(link).toHaveText(item.label);
     }
 
-    // The next chapter announces itself at the bottom of the first viewport.
-    const announcement = page.locator('[data-testid="chapter-label-hackathons"]');
-    await expectInViewport(announcement);
-    await expect(announcement).toContainText('01 / Hackathons');
-    const box = await requireBox(announcement);
+    // The first resting viewport belongs to the name: nothing of Hackathons shows until the reader scrolls.
     const viewport = page.viewportSize() ?? { width: 0, height: 0 };
-    expect(box.y + box.height, 'the announcement should be fully inside the first viewport').toBeLessThanOrEqual(viewport.height);
-    void testInfo;
+    const rest = await page.evaluate(() => ({
+      scrollY: window.scrollY,
+      openingBottom: document.getElementById('opening')!.getBoundingClientRect().bottom,
+      chapterTop: document.getElementById('hackathons')!.getBoundingClientRect().top,
+      labelTop: document.querySelector('[data-testid="chapter-label-hackathons"]')!.getBoundingClientRect().top,
+      nameBottom: document.getElementById('name')!.getBoundingClientRect().bottom,
+    }));
+    expect(rest.scrollY).toBe(0);
+    expect(rest.openingBottom, 'the opening reaches the bottom of the viewport').toBeGreaterThanOrEqual(viewport.height);
+    expect(rest.chapterTop, 'Hackathons starts below the first viewport').toBeGreaterThanOrEqual(viewport.height);
+    expect(rest.labelTop, 'the Hackathons label is below the first viewport').toBeGreaterThanOrEqual(viewport.height);
+    expect(rest.nameBottom, 'the name sits inside the first screen').toBeLessThanOrEqual(viewport.height);
 
     expect(hackathonProjects).toHaveLength(2);
     for (const project of hackathonProjects) {
@@ -118,14 +124,27 @@ test.describe('opening', () => {
     }
   });
 
-  test('?webgl=off renders the static fallback without any canvas', async ({ page }) => {
+  test('?webgl=off renders the static poster of both shells without any canvas', async ({ page }) => {
     await page.goto('/?webgl=off&intro=skip');
     await expect(scene(page)).toHaveAttribute('data-render-state', 'fallback', { timeout: 15_000 });
     const fallback = page.getByTestId('scene-fallback');
     await expect(fallback).toBeVisible();
-    await expect
-      .poll(() => fallback.locator('polygon').count(), { message: 'fallback should draw at least 50 polygons' })
-      .toBeGreaterThanOrEqual(50);
+    await expect(fallback.locator('g[data-part="upper"]')).toHaveCount(1);
+    await expect(fallback.locator('g[data-part="lower"]')).toHaveCount(1);
+    await expect(fallback.locator('g[data-part] path')).toHaveCount(8);
+    // The poster is projected at the real viewport size: the two shells sit apart, the lower one below the upper.
+    const parts = await fallback.locator('g[data-part]').evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const r = (node as SVGGElement).getBoundingClientRect();
+        return { part: node.getAttribute('data-part'), top: r.top, bottom: r.bottom, width: r.width };
+      }),
+    );
+    const upper = parts.find((p) => p.part === 'upper')!;
+    const lower = parts.find((p) => p.part === 'lower')!;
+    expect(upper.width).toBeGreaterThan(100);
+    expect(lower.width).toBeGreaterThan(100);
+    expect(lower.bottom).toBeGreaterThan(upper.bottom);
+    expect(lower.top).toBeGreaterThan(upper.top);
     await expect(page.locator('canvas')).toHaveCount(0);
   });
 
@@ -153,9 +172,8 @@ test.describe('opening', () => {
     await gotoAndSettle(page, '/?intro=skip');
     await waitForRenderState(page, SETTLED_RENDER_STATES);
     const end = await openingHeight(page);
-    expect(end).toBeGreaterThan(400);
     const viewport = page.viewportSize() ?? { width: 0, height: 0 };
-    expect(end, 'the opening leaves room for the announcement').toBeLessThan(viewport.height);
+    expect(end, 'the handoff distance is the full first viewport').toBe(viewport.height);
 
     await scrollTo(page, Math.round(end * 0.5));
     await page.waitForTimeout(250);
@@ -163,7 +181,7 @@ test.describe('opening', () => {
     const pinned = await requireBox(page.locator('section#opening'));
     expect(Math.round(pinned.y), 'the opening stays pinned at the top during the handoff').toBe(0);
     const chapterTop = (await requireBox(page.locator('section#hackathons'))).y;
-    expect(chapterTop, 'the chapter has risen over the lower half of the opening').toBeLessThan(viewport.height * 0.5);
+    expect(chapterTop, 'the chapter has risen over the lower half of the opening').toBeLessThanOrEqual(viewport.height * 0.5);
     expect(chapterTop).toBeGreaterThan(0);
     await expect(scene(page)).toHaveAttribute('data-active', 'true');
     const handoff = Number(await page.evaluate(() => document.documentElement.style.getPropertyValue('--handoff')));
@@ -185,7 +203,7 @@ test.describe('opening', () => {
       if (nameOpacity > 0.05) expect(nameBottom, `at ${fraction} of the handoff the surface edge must stay below the name`).toBeLessThan(chapterTop);
     }
     const fold = Number(await page.evaluate(() => document.documentElement.style.getPropertyValue('--fold')));
-    expect(fold, 'the sculpture has folded almost completely by 85% of the handoff').toBeGreaterThan(0.85);
+    expect(fold, 'the shells have closed and turned almost completely by 85% of the handoff').toBeGreaterThan(0.85);
 
     await scrollTo(page, end + 40);
     await page.waitForTimeout(350);
@@ -355,19 +373,20 @@ test.describe('opening', () => {
     expect(await documentScrollWidth(page), 'scroll width after scrolling to the bottom').toBeLessThanOrEqual(320);
   });
 
-  test('compact: the identity lines stay clear of the artwork', async ({ page }, testInfo) => {
+  test('compact: the artwork is framed under the identity lines with a quiet lower margin', async ({ page }, testInfo) => {
     skipUnlessProject(testInfo, 'mobile', 'narrow');
-    // The fallback projects the same blades through the same camera, so its polygons stand in for the WebGL silhouette.
+    // The poster projects the same shells through the same camera, so its paths stand in for the WebGL silhouette.
     await gotoAndSettle(page, '/?intro=skip&webgl=off');
     await expect(scene(page)).toHaveAttribute('data-render-state', 'fallback');
     const identityBox = await requireBox(page.getByTestId('identity'));
+    const viewport = page.viewportSize() ?? { width: 0, height: 0 };
     const art = await page.evaluate(() => {
       let left = Infinity;
       let top = Infinity;
       let right = -Infinity;
       let bottom = -Infinity;
-      for (const polygon of Array.from(document.querySelectorAll('[data-testid="scene-fallback"] polygon'))) {
-        const r = polygon.getBoundingClientRect();
+      for (const path of Array.from(document.querySelectorAll('[data-testid="scene-fallback"] g[data-part] path'))) {
+        const r = path.getBoundingClientRect();
         left = Math.min(left, r.left);
         top = Math.min(top, r.top);
         right = Math.max(right, r.right);
@@ -375,15 +394,30 @@ test.describe('opening', () => {
       }
       return { left, top, right, bottom };
     });
-    const overlapsVertically = art.top < identityBox.y + identityBox.height && art.bottom > identityBox.y;
-    const overlapsHorizontally = art.left < identityBox.x + identityBox.width && art.right > identityBox.x;
-    expect(
-      overlapsVertically && overlapsHorizontally,
-      `artwork ${JSON.stringify(art)} overlaps the identity block ${JSON.stringify(identityBox)}`,
-    ).toBe(false);
-    expect(art.top, 'the artwork should start below the identity lines').toBeGreaterThanOrEqual(identityBox.y + identityBox.height);
-    const announcement = await requireBox(page.locator('[data-testid="chapter-label-hackathons"]'));
-    expect(art.bottom, 'the artwork should end above the announcement').toBeLessThanOrEqual(announcement.y);
+    expect(art.top, 'the artwork starts below the identity lines').toBeGreaterThanOrEqual(identityBox.y + identityBox.height + 8);
+    expect(art.bottom, 'a quiet margin stays under the artwork').toBeLessThanOrEqual(viewport.height - 40);
+    expect(art.left).toBeGreaterThanOrEqual(0);
+    expect(art.right).toBeLessThanOrEqual(viewport.width);
+    const width = art.right - art.left;
+    expect(width / viewport.width, 'the form reads within the content width').toBeGreaterThan(0.6);
+    expect(width / viewport.width).toBeLessThan(0.92);
+  });
+
+  test('the opening fills the visible viewport at rest on short screens too', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'desktop');
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await gotoAndSettle(page, '/?intro=skip');
+    const rest = await page.evaluate(() => ({
+      openingBottom: document.getElementById('opening')!.getBoundingClientRect().bottom,
+      chapterTop: document.getElementById('hackathons')!.getBoundingClientRect().top,
+      nameBottom: document.getElementById('name')!.getBoundingClientRect().bottom,
+      identityBottom: document.querySelector('[data-testid="identity"]')!.getBoundingClientRect().bottom,
+      nameTop: document.getElementById('name')!.getBoundingClientRect().top,
+    }));
+    expect(rest.openingBottom).toBeGreaterThanOrEqual(768);
+    expect(rest.chapterTop).toBeGreaterThanOrEqual(768);
+    expect(rest.nameBottom).toBeLessThanOrEqual(768);
+    expect(rest.identityBottom, 'the lines stay above the name').toBeLessThan(rest.nameTop);
   });
 
   test('mobile: the name fits, Hackathons follows it, and both awards read in sequence', async ({ page }, testInfo) => {

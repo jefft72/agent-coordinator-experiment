@@ -42,8 +42,6 @@
   --max-width: 1600px;
   /* Anchor targets stop below the fixed header. */
   --header-clearance: 86px;
-  /* Height of the next chapter's entry that shows at the bottom of the opening. */
-  --announce: 112px;
 
   /* Name: real glyph height, not a transform. */
   --name-size: clamp(96px, 14.6vw, 212px);
@@ -83,7 +81,6 @@ html[data-zone='about'] {
   :root {
     --gutter: 20px;
     --header-clearance: 70px;
-    --announce: 96px;
     --body-size: 16px;
     --small-size: 13px;
     --nav-size: 14px;

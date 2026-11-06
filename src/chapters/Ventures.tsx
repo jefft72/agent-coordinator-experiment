@@ -74,8 +74,9 @@ function splitFigure(figure: string): { number: string; qualification: string } 
 
 /**
  * Diffex: a very large name, the meta at its baseline, two qualified figures
- * side by side, the flow, the blocks, the links. The name and meta arrive
- * with the chapter title on the takeover; the rest arrives in its own time.
+ * side by side, the flow, the blocks, the links. The name, the meta, and the
+ * two figures arrive with the chapter title on the takeover as one staggered
+ * composition, each on its own plane; the rest arrives in its own time.
  */
 function DiffexStory({ project }: { project: Project }) {
   return (
@@ -86,11 +87,11 @@ function DiffexStory({ project }: { project: Project }) {
         </h3>
         <Meta project={project} className="plane" style={{ '--travel': '15vh' } as CSSProperties} />
       </header>
-      <ul className="venture-diffex__figures" data-reveal="">
+      <ul className="venture-diffex__figures">
         {project.figures.map((figure, index) => {
           const { number, qualification } = splitFigure(figure);
           return (
-            <li key={figure} className="venture-diffex__figure arrive" style={{ '--i': index } as CSSProperties}>
+            <li key={figure} className="venture-diffex__figure plane plane--solid" style={{ '--travel': `${19 + index * 5}vh` } as CSSProperties}>
               <strong className="venture-diffex__number">{number}</strong>{' '}
               <span className="venture-diffex__qualification">{qualification}</span>
             </li>

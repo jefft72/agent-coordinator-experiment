@@ -2,8 +2,9 @@
 
 A static site built with React, TypeScript, and Vite.
 The page is one native document of five chapters: the opening with Jeffrey Tseng, then Hackathons, Experience, Ventures, and About with Contact.
-The opening is one WebGL scene rendered with react-three-fiber: an abstract sculpture of thin metal plates twisted along a spine that rises to a lit crest and folds back into depth, lit by a graded dome and three authored light shapes.
-On desktop the opening pins with CSS sticky while the Hackathons chapter rises over it; the identity plane recedes ahead of the rising surface, the sculpture folds away in between, and the scene stops rendering once covered.
+The opening fills the first viewport: the name and three identity lines, and one WebGL scene rendered with react-three-fiber.
+The scene is a split optical shell: two closed metal shells cut from one leaning lens by a shallow S-shaped slit, with convex satin-silver fronts, a thick polished wall along the cut, a rounded rim, and dark backs, lit by one painted sky with a broad key lobe and a narrow cool strip.
+On desktop the opening pins with CSS sticky while the Hackathons chapter rises over it; the identity plane recedes ahead of the rising surface, the shells close and turn away in between, and the scene stops rendering once covered.
 Below the opening, native scrolling drives one choreography: project titles and media arrive into their reading positions, each later chapter takes over with its title and first story on separate planes, and the OpenCraft media holds while the light Experience surface advances over it.
 Every fact, link, and project detail lives in semantic HTML and remains available without WebGL, without JavaScript animation, and on a keyboard.
 
@@ -28,7 +29,7 @@ npm run preview:subpath # serve it on http://localhost:4174/agent-coordinator-ex
 
 ```sh
 npm run lint          # eslint and tsc
-npm test              # vitest unit tests: content model and hygiene, blade field math
+npm test              # vitest unit tests: content model and hygiene, shell geometry and poses
 npm run test:browser  # builds both outputs, then Playwright in Google Chrome (channel "chrome")
 npm run check         # lint, unit tests, then browser tests: the same sequence CI runs
 npm run screenshots   # review captures into .context/screens/ (untracked)
@@ -64,22 +65,27 @@ Every action in the workflow is pinned to a release commit SHA with the version 
   There is no scroll hijacking, no scroll snapping, and no dead scroll interval; the only pinned elements are the opening during its short handoff and the OpenCraft media during the Hackathons-to-Experience cover on desktop.
 - `src/lib/reveal.ts` writes `--reveal` on every `[data-reveal]` element as its top edge travels into the reading zone, and `--takeover` on every `[data-takeover]` chapter (with `--covered` on the chapter beneath) as its surface rises.
   The stylesheets read those variables with the settled value as fallback, so content is in place before the tracker runs, and only media planes recede: prose, awards, controls, and links stay fully opaque while they can be read.
-- Pointer movement over the opening causes a local, travelling change in blade alignment that settles when the pointer leaves.
+- Pointer movement over the opening turns the shells by a few degrees and settles when the pointer leaves; the object never follows the cursor across the page.
   Touch devices get the same reveal and scroll transition without the pointer response.
+- The scene renders on demand: one frame per scroll, pointer, or preference change, plus frames while a value is still easing, and none once everything has settled, the opening is covered, or the document is hidden.
+  There is no idle animation loop.
 - Each hackathon spread has three labelled contribution controls, a tablist with arrow-key, Home, and End support, that reveal one part of the work in a reserved area and highlight the matching steps of a named flow or schematic.
   The award, ownership sentence, figures, and proof links stay outside the controls.
 - The UPlate gallery shows one real screenshot at a time with previous and next controls that wrap, a counter, and the caption of the current screenshot; all three images stay in the document.
 - The header takes the colour of the chapter under it and marks the current chapter with aria-current; the five destinations are real anchors that land on the chapter heading, cold or warm, under both deployment bases.
   Its field and type switch together the moment the zone changes, with no colour transition, so the links never pass through an unreadable intermediate palette; only their dimming and underline ease.
-- Reduced motion keeps every chapter and control, unpins the opening, removes every arrival, takeover, and hold, and switches states immediately; the tracker follows a live change of the preference in both directions without a reload.
+- Reduced motion keeps every chapter and control, unpins the opening, shows the composed shells at rest, removes every arrival, takeover, and hold, and switches states immediately; the tracker follows a live change of the preference in both directions without a reload.
+- The opening is at least one full viewport, measured as `100lvh` with a floor for short screens, so no part of the Hackathons chapter shows at rest; when phone browser chrome collapses, the newly visible band is the opening's own margin.
 - Section links stop below the fixed header.
 
 Query parameters used by the test suite: `?intro=skip`, `?intro=play`, `?webgl=off`, `?scene=stall`, `?scene=fail`, `?scene=chunk-fail`.
 
 ## Artwork
 
-`src/scene/bladeField.ts` is pure math shared by the WebGL scene, the SVG fallback, and the unit tests: the spine, plate heights, the twist expressed relative to each plate's face-on pose, the loader's collapsed pose, the scroll fold, and the camera.
-`src/scene/environment.ts` builds the reflection environment from a graded dome and three light shapes whose positions are exported from the field, so the fallback shades its faces from the same lights.
+`src/scene/shell.ts` is pure math shared by the WebGL scene, the SVG poster, and the unit tests: the leaning egg outline, the S-shaped cut and its gap, the two shell boundaries, the loft of each closed shell from its centre to its rim with the lens thickness as one global dome, the rest pose per layout, the scroll closure and turn, the loader's entrance pose, the pointer tilt, and the camera projection.
+`src/scene/Shells.tsx` poses the two meshes every frame from the shared motion state and requests frames only while something is still moving.
+`src/scene/ShellSvg.tsx` draws the same silhouette as three nested projected rings per shell (dark back edge, steel wall and rim, silver face with one broad gradient), which is the WebGL-off, failure, and loading picture.
+`src/scene/environment.ts` paints the reflection environment per vertex on one sphere, so the convex faces reflect broad gradients with no visible light cards; a single narrow cool strip gives the cut wall and rim their highlight.
 
 ## Fonts
 
