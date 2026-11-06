@@ -124,6 +124,35 @@ export async function waitForRenderState(
   return (await scene(page).getAttribute('data-render-state')) as RenderState;
 }
 
+/**
+ * Records every value html[data-load-state] takes, in order, from before the
+ * app mounts. Call before navigation and read the result with loadStateHistory.
+ */
+export async function recordLoadStates(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const history: string[] = [];
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.oldValue !== null && record.oldValue !== history[history.length - 1]) history.push(record.oldValue);
+      }
+      const current = document.documentElement.getAttribute('data-load-state');
+      if (current !== null && current !== history[history.length - 1]) history.push(current);
+    });
+    observer.observe(document, { subtree: true, attributes: true, attributeOldValue: true, attributeFilter: ['data-load-state'] });
+    (window as unknown as { __loadStates: string[] }).__loadStates = history;
+  });
+}
+
+/** The load states recorded by recordLoadStates, oldest first. */
+export function loadStateHistory(page: Page): Promise<string[]> {
+  return page.evaluate(() => (window as unknown as { __loadStates?: string[] }).__loadStates ?? []);
+}
+
+/** Durations of every User Timing measure with the given name, in the order they were recorded. */
+export function measureDurations(page: Page, name: string): Promise<number[]> {
+  return page.evaluate((name) => performance.getEntriesByName(name, 'measure').map((entry) => entry.duration), name);
+}
+
 /** Returns the first value of html[data-load-state] observed after navigation. */
 export async function firstLoadState(page: Page, timeout = 10_000): Promise<string> {
   const handle = await page.waitForFunction(

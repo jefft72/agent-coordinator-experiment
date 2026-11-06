@@ -12,6 +12,11 @@ export const REVEAL_MS = 800;
 
 export const INTRO_STORAGE_KEY = 'jt:intro';
 
+/** User Timing measure from the moment the deadline starts counting to finish; the browser tests read it. */
+export const INTRO_MEASURE = 'jt:intro';
+const INTRO_MARK_START = 'jt:intro:start';
+const INTRO_MARK_END = 'jt:intro:end';
+
 const CRITICAL_FONTS = ['900 1em "Archivo ExtraCondensed"', '400 1em "Archivo"'];
 
 function readIntroPreference(): 'play' | 'skip' {
@@ -34,6 +39,22 @@ function markIntroSeen() {
     window.sessionStorage.setItem(INTRO_STORAGE_KEY, 'seen');
   } catch {
     /* ignore */
+  }
+}
+
+/** Marks the start of the loader's own interval. No-op where User Timing is unavailable. */
+function markIntroStart() {
+  if (typeof performance.mark === 'function') performance.mark(INTRO_MARK_START);
+}
+
+/** Closes the loader's interval as the `jt:intro` measure. No-op where User Timing is unavailable. */
+function markIntroEnd() {
+  if (typeof performance.mark !== 'function' || typeof performance.measure !== 'function') return;
+  performance.mark(INTRO_MARK_END);
+  try {
+    performance.measure(INTRO_MEASURE, INTRO_MARK_START, INTRO_MARK_END);
+  } catch {
+    /* finished before the deadline started counting: nothing to measure */
   }
 }
 
@@ -74,6 +95,7 @@ export function useLoadSequence(scene: SceneStatus): LoadSequence {
         revealFrame.current = null;
       }
       motion.reveal = 1;
+      markIntroEnd();
       markIntroSeen();
       setState(next);
     },
@@ -128,7 +150,10 @@ export function useLoadSequence(scene: SceneStatus): LoadSequence {
   useEffect(() => {
     if (state !== 'loading') return;
     const settled = scene === 'failed' || (fontsReady && scene !== 'pending');
-    if (startedAt.current === null) startedAt.current = performance.now();
+    if (startedAt.current === null) {
+      startedAt.current = performance.now();
+      markIntroStart();
+    }
     const remaining = Math.max(0, startedAt.current + LOAD_DEADLINE_MS - performance.now());
     const timer = window.setTimeout(() => (scene === 'failed' ? finish('failed') : startReveal()), settled ? 0 : remaining);
     return () => window.clearTimeout(timer);

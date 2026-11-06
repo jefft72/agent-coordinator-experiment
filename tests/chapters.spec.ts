@@ -31,30 +31,72 @@ function expectNear(color: string, rgb: [number, number, number]) {
   channels.forEach((value, i) => expect(Math.abs(value - rgb[i]), `${color} vs rgb(${rgb.join(', ')})`).toBeLessThanOrEqual(2));
 }
 
-/** Every sentence a project must show on the main page, with no control pressed. */
-async function expectProjectOnPage(page: Page, project: Project) {
-  const node = article(page, project.id);
-  await expect(node, `${project.id} article`).toHaveCount(1);
-  await expect(node.locator(`h3#project-title-${project.id}`)).toHaveText(project.name);
-  await expect(node).toContainText(project.role);
-  if (project.dates) await expect(node).toContainText(project.dates);
-  await expect(node).toContainText(project.summary);
-  for (const figure of project.figures) {
-    await expect(node, `${project.id} figure "${figure}"`).toContainText(figure);
+/** What one project article renders, gathered in a single round trip so a slow frame costs one wait rather than fifteen. */
+interface ProjectRender {
+  count: number;
+  heading: string | null;
+  text: string;
+  alts: string[];
+  hrefs: string[];
+}
+
+function renderedProject(page: Page, id: string): Promise<ProjectRender> {
+  return page.evaluate((id) => {
+    const nodes = document.querySelectorAll(`article[data-testid="project-${id}"]`);
+    const node = nodes[0];
+    return {
+      count: nodes.length,
+      heading: node?.querySelector(`h3#project-title-${id}`)?.textContent ?? null,
+      text: node?.textContent ?? '',
+      alts: node ? Array.from(node.querySelectorAll('img'), (img) => img.getAttribute('alt') ?? '') : [],
+      hrefs: node ? Array.from(node.querySelectorAll('a'), (a) => a.getAttribute('href') ?? '') : [],
+    };
+  }, id);
+}
+
+/** The normalisation toHaveText and toContainText apply to both sides: zero-width spaces and soft hyphens dropped, whitespace collapsed. */
+function normalizeText(text: string): string {
+  return text.replace(/[\u200b\u00ad]/g, '').trim().replace(/\s+/g, ' ');
+}
+
+/** Every sentence a project must show on the main page, with no control pressed, reported as what is missing. */
+function missingFromProject(project: Project, rendered: ProjectRender): string[] {
+  if (rendered.count !== 1) return [`article (found ${rendered.count})`];
+  const text = normalizeText(rendered.text);
+  const missing: string[] = [];
+  const expectText = (label: string, value: string) => {
+    if (!text.includes(normalizeText(value))) missing.push(`${label} "${value}"`);
+  };
+  if (normalizeText(rendered.heading ?? '') !== normalizeText(project.name)) {
+    missing.push(`name heading "${project.name}" (found ${JSON.stringify(rendered.heading)})`);
   }
+  expectText('role', project.role);
+  if (project.dates) expectText('dates', project.dates);
+  expectText('summary', project.summary);
+  for (const figure of project.figures) expectText('figure', figure);
   for (const link of project.links) {
-    await expectAtLeastOne(node.locator(`a[href="${link.href}"]`), `${project.id} link ${link.href}`);
+    if (!rendered.hrefs.includes(link.href)) missing.push(`link ${link.href}`);
   }
   for (const evidence of project.evidence) {
-    await expectAtLeastOne(node.locator(`img[alt="${evidence.alt}"]`), `${project.id} image "${evidence.alt}"`);
-    await expect(node).toContainText(evidence.caption);
+    if (!rendered.alts.includes(evidence.alt)) missing.push(`image "${evidence.alt}"`);
+    expectText('caption', evidence.caption);
   }
   const award = project.award;
   if (award) {
-    await expect(node).toContainText(award.event);
-    for (const { title } of award.titles) await expect(node).toContainText(title);
-    await expectAtLeastOne(node.locator(`a[href="${award.proof.href}"]`), `${project.id} proof link`);
+    expectText('award event', award.event);
+    for (const { title } of award.titles) expectText('award title', title);
+    if (!rendered.hrefs.includes(award.proof.href)) missing.push(`proof link ${award.proof.href}`);
   }
+  return missing;
+}
+
+/** Polls the one-round-trip gather until nothing is missing; a failure names the project and every missing string. */
+async function expectProjectOnPage(page: Page, project: Project) {
+  await expect
+    .poll(async () => missingFromProject(project, await renderedProject(page, project.id)), {
+      message: `${project.id} is missing content on the main page`,
+    })
+    .toEqual([]);
 }
 
 test.describe('chapters', () => {
@@ -105,16 +147,22 @@ test.describe('chapters', () => {
     expectNear(surfaces.about, [22, 23, 27]);
   });
 
-  test('all six projects are readable on the main page without opening anything', async ({ page }) => {
+  test('all six projects are on the main page in order, with no dialog and no stray canvas', async ({ page }) => {
     const articles = page.locator('article[data-testid^="project-"]');
     await expect(articles).toHaveCount(projects.length);
     const ids = await articles.evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-testid')));
     expect(ids).toEqual(projects.map((project) => `project-${project.id}`));
-    for (const project of projects) await expectProjectOnPage(page, project);
     await expect(article(page, 'animalabs').locator('a[href*="github.com"]')).toHaveCount(0);
     await expect(page.locator('dialog')).toHaveCount(0);
     await expect(page.locator('canvas:not([data-testid="scene"] canvas)')).toHaveCount(0);
   });
+
+  // One test per project keeps each within its own budget when every round trip waits for a software-rendered frame.
+  for (const project of projects) {
+    test(`${project.id} is readable on the main page without opening anything`, async ({ page }) => {
+      await expectProjectOnPage(page, project);
+    });
+  }
 
   test('every contribution sentence is on the page, in blocks or behind a labelled control', async ({ page }) => {
     for (const project of projects) {

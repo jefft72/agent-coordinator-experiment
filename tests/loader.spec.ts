@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 import { test, expect } from '@playwright/test';
+import { INTRO_MEASURE, LOAD_DEADLINE_MS, REVEAL_MS } from '../src/loader/useLoadSequence';
 import {
   INTRO_STORAGE_KEY,
   expectAnchorPlaced,
@@ -7,6 +8,9 @@ import {
   firstLoadState,
   htmlRoot,
   intro,
+  loadStateHistory,
+  measureDurations,
+  recordLoadStates,
   scene,
   skipIntroButton,
   skipUnlessProject,
@@ -56,12 +60,23 @@ test.describe('loader', () => {
   });
 
   test('?scene=stall gives up on the scene within the deadline', async ({ page }, testInfo) => {
+    await recordLoadStates(page);
     const started = Date.now();
     await page.goto('/?scene=stall', { waitUntil: 'commit' });
-    await expect(htmlRoot(page)).toHaveAttribute('data-load-state', /^(bypassed|ready)$/, { timeout: 4_000 });
-    const elapsed = Date.now() - started;
-    testInfo.annotations.push({ type: 'stall-elapsed-ms', description: String(elapsed) });
-    expect(elapsed, 'time from navigation to a readable page').toBeLessThanOrEqual(4_000);
+    await waitForLoadState(page, ['ready'], 15_000);
+    // Wall time includes navigation, chunk loading, and React mount, so it varies with the machine and is only recorded.
+    testInfo.annotations.push({ type: 'stall-elapsed-ms', description: String(Date.now() - started) });
+
+    // The loader's own interval, from the first deadline tick to finish, is what the deadline promises.
+    // The loader finishes once per page, so a second measure would mean a double finish.
+    const durations = await measureDurations(page, INTRO_MEASURE);
+    expect(durations, `${INTRO_MEASURE} measures recorded`).toHaveLength(1);
+    const [duration] = durations;
+    testInfo.annotations.push({ type: 'stall-intro-ms', description: duration.toFixed(0) });
+    expect(duration, 'a stalled scene must wait out the whole deadline').toBeGreaterThanOrEqual(LOAD_DEADLINE_MS);
+    // Two slow frames of slack beyond the deadline and the reveal, for a throttled software renderer.
+    expect(duration, 'the deadline, then the reveal, with nothing added').toBeLessThanOrEqual(LOAD_DEADLINE_MS + REVEAL_MS + 400);
+    expect(await loadStateHistory(page), 'the stall reveals before it is ready').toEqual(['loading', 'reveal', 'ready']);
 
     await expect(page.locator('h1#name')).toBeVisible();
     await expect(intro(page)).toBeHidden();

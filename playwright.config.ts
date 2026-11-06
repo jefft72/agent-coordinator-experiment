@@ -63,7 +63,8 @@ export default defineConfig({
   workers: 2,
   fullyParallel: false,
   retries: 0,
-  reporter: [['list']],
+  // CI adds the GitHub reporter so failures annotate the workflow run inline.
+  reporter: process.env.CI ? [['list'], ['github']] : [['list']],
   use: {
     baseURL: 'http://localhost:4173',
     trace: 'retain-on-failure',
