@@ -60,12 +60,17 @@ Every action in the workflow is pinned to a release commit SHA with the version 
 - The intro has a visible Skip intro control from its first frame.
 - The intro only waits for the two critical fonts and the first drawable scene frame, with a bounded deadline of 2.5 seconds, after which the static composition is shown and WebGL finishes loading behind it.
 - Returning visits in the same session, direct section links such as `/#hackathons`, and `prefers-reduced-motion` bypass the intro.
-- Native document scrolling drives everything: the opening handoff, the arrivals, and the chapter takeovers are functions of the scroll position, so they play forward on the way down and in reverse on the way back up. There is no scroll hijacking, no scroll snapping, and no dead scroll interval; the only pinned elements are the opening during its short handoff and the OpenCraft media during the Hackathons-to-Experience cover on desktop.
-- `src/lib/reveal.ts` writes `--reveal` on every `[data-reveal]` element as its top edge travels into the reading zone, and `--takeover` on every `[data-takeover]` chapter (with `--covered` on the chapter beneath) as its surface rises. The stylesheets read those variables with the settled value as fallback, so content is in place before the tracker runs, and only media planes recede: prose, awards, controls, and links stay fully opaque while they can be read.
-- Pointer movement over the opening causes a local, travelling change in blade alignment that settles when the pointer leaves. Touch devices get the same reveal and scroll transition without the pointer response.
-- Each hackathon spread has three labelled contribution controls, a tablist with arrow-key, Home, and End support, that reveal one part of the work in a reserved area and highlight the matching steps of a named flow or schematic. The award, ownership sentence, figures, and proof links stay outside the controls.
+- Native document scrolling drives everything: the opening handoff, the arrivals, and the chapter takeovers are functions of the scroll position, so they play forward on the way down and in reverse on the way back up.
+  There is no scroll hijacking, no scroll snapping, and no dead scroll interval; the only pinned elements are the opening during its short handoff and the OpenCraft media during the Hackathons-to-Experience cover on desktop.
+- `src/lib/reveal.ts` writes `--reveal` on every `[data-reveal]` element as its top edge travels into the reading zone, and `--takeover` on every `[data-takeover]` chapter (with `--covered` on the chapter beneath) as its surface rises.
+  The stylesheets read those variables with the settled value as fallback, so content is in place before the tracker runs, and only media planes recede: prose, awards, controls, and links stay fully opaque while they can be read.
+- Pointer movement over the opening causes a local, travelling change in blade alignment that settles when the pointer leaves.
+  Touch devices get the same reveal and scroll transition without the pointer response.
+- Each hackathon spread has three labelled contribution controls, a tablist with arrow-key, Home, and End support, that reveal one part of the work in a reserved area and highlight the matching steps of a named flow or schematic.
+  The award, ownership sentence, figures, and proof links stay outside the controls.
 - The UPlate gallery shows one real screenshot at a time with previous and next controls that wrap, a counter, and the caption of the current screenshot; all three images stay in the document.
 - The header takes the colour of the chapter under it and marks the current chapter with aria-current; the five destinations are real anchors that land on the chapter heading, cold or warm, under both deployment bases.
+  Its field and type switch together the moment the zone changes, with no colour transition, so the links never pass through an unreadable intermediate palette; only their dimming and underline ease.
 - Reduced motion keeps every chapter and control, unpins the opening, removes every arrival, takeover, and hold, and switches states immediately; the tracker follows a live change of the preference in both directions without a reload.
 - Section links stop below the fixed header.
 
