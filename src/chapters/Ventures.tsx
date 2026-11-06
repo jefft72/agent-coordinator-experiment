@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { chapters, projectById } from '../content/site';
 import type { Project } from '../content/types';
 import { ChapterEntry } from './ChapterEntry';
@@ -26,6 +26,7 @@ export function Ventures() {
       data-testid="chapter-ventures"
       data-zone="ventures"
       data-chapter="ventures"
+      data-takeover=""
       aria-labelledby="ventures-heading"
     >
       <div className="chapter__inner">
@@ -38,9 +39,9 @@ export function Ventures() {
 }
 
 /** Kind, role, and dates, adjacent to the name in both stories. */
-function Meta({ project }: { project: Project }) {
+function Meta({ project, className, style }: { project: Project; className?: string; style?: CSSProperties }) {
   return (
-    <div className="venture__meta">
+    <div className={className ? `venture__meta ${className}` : 'venture__meta'} style={style}>
       <p className="venture__kind">{project.kind}</p>
       <p className="venture__role">{project.role}</p>
       {project.dates ? <p className="venture__dates">{project.dates}</p> : null}
@@ -50,7 +51,7 @@ function Meta({ project }: { project: Project }) {
 
 function Links({ project }: { project: Project }) {
   return (
-    <ul className="links venture__links">
+    <ul className="links venture__links arrive" data-reveal="">
       {project.links.map((link) => (
         <li key={link.href}>
           <ContentLink link={link} className="link--strong" />
@@ -71,56 +72,66 @@ function splitFigure(figure: string): { number: string; qualification: string } 
   return { number: figure.slice(0, space), qualification: figure.slice(space + 1) };
 }
 
-/** Diffex: a very large name, the meta at its baseline, two qualified figures side by side, the flow, the blocks, the links. */
+/**
+ * Diffex: a very large name, the meta at its baseline, two qualified figures
+ * side by side, the flow, the blocks, the links. The name and meta arrive
+ * with the chapter title on the takeover; the rest arrives in its own time.
+ */
 function DiffexStory({ project }: { project: Project }) {
   return (
     <article className="venture venture--diffex" data-testid={`project-${project.id}`} aria-labelledby={`project-title-${project.id}`}>
       <header className="venture-diffex__head">
-        <h3 className="project__title venture-diffex__title" id={`project-title-${project.id}`}>
+        <h3 className="project__title venture-diffex__title plane" style={{ '--travel': '12vh' } as CSSProperties} id={`project-title-${project.id}`}>
           {project.name}
         </h3>
-        <Meta project={project} />
+        <Meta project={project} className="plane" style={{ '--travel': '15vh' } as CSSProperties} />
       </header>
-      <ul className="venture-diffex__figures">
-        {project.figures.map((figure) => {
+      <ul className="venture-diffex__figures" data-reveal="">
+        {project.figures.map((figure, index) => {
           const { number, qualification } = splitFigure(figure);
           return (
-            <li key={figure} className="venture-diffex__figure">
+            <li key={figure} className="venture-diffex__figure arrive" style={{ '--i': index } as CSSProperties}>
               <strong className="venture-diffex__number">{number}</strong>{' '}
               <span className="venture-diffex__qualification">{qualification}</span>
             </li>
           );
         })}
       </ul>
-      <p className="summary venture-diffex__summary">{project.summary}</p>
+      <p className="summary venture-diffex__summary arrive" data-reveal="">
+        {project.summary}
+      </p>
       {project.flow ? (
-        <Flow project={project.id} title={project.flow.title} steps={project.flow.steps} className="venture-diffex__flow" />
+        <Flow project={project.id} title={project.flow.title} steps={project.flow.steps} className="venture-diffex__flow arrive" reveal />
       ) : null}
-      <ContributionBlocks project={project.id} contributions={project.contributions} className="venture-diffex__blocks" />
+      <ContributionBlocks project={project.id} contributions={project.contributions} className="venture-diffex__blocks" reveal />
       <Links project={project} />
     </article>
   );
 }
 
-/** UPlate: the screenshot gallery on the left, the name and the reading column on the right. */
+/**
+ * UPlate: the screenshot gallery on the left, the name and the reading column
+ * on the right. The gallery frame opens toward the name as the story arrives,
+ * and the whole story pulls back as About covers it.
+ */
 function UplateStory({ project }: { project: Project }) {
   return (
-    <article className="venture venture--uplate" data-testid={`project-${project.id}`} aria-labelledby={`project-title-${project.id}`}>
-      <header className="venture-uplate__head">
+    <article className="venture venture--uplate" data-testid={`project-${project.id}`} data-reveal="" aria-labelledby={`project-title-${project.id}`}>
+      <header className="venture-uplate__head arrive" style={{ '--i': 0 } as CSSProperties}>
         <h3 className="project__title" id={`project-title-${project.id}`}>
           {project.name}
         </h3>
         <Meta project={project} />
       </header>
       <Gallery project={project} />
-      <div className="venture-uplate__text">
+      <div className="venture-uplate__text arrive" style={{ '--i': 1 } as CSSProperties}>
         <ul className="venture-uplate__stats">
           {project.figures.map((figure) => (
             <li key={figure}>{figure}</li>
           ))}
         </ul>
         <p className="summary venture-uplate__summary">{project.summary}</p>
-        <ContributionBlocks project={project.id} contributions={project.contributions} className="venture-uplate__blocks" />
+        <ContributionBlocks project={project.id} contributions={project.contributions} className="venture-uplate__blocks" reveal />
         <Links project={project} />
       </div>
     </article>
@@ -157,7 +168,7 @@ function Gallery({ project }: { project: Project }) {
 
   return (
     <div
-      className="gallery"
+      className="gallery recedes"
       data-testid={`gallery-${project.id}`}
       role="group"
       aria-roledescription="carousel"

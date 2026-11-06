@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type KeyboardEvent } from 'react';
+import { useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import type { Contribution } from '../content/types';
 
 export interface ContributionTabsProps {
@@ -88,12 +88,25 @@ export function ContributionTabs({ project, contributions, onSelect, className }
   );
 }
 
+export interface ContributionBlocksProps {
+  project: string;
+  contributions: Contribution[];
+  className?: string;
+  /** Marks the group for the scroll reveal tracker; the blocks then arrive one after another. */
+  reveal?: boolean;
+}
+
 /** The same contributions as adjacent labelled blocks, every one visible. */
-export function ContributionBlocks({ project, contributions, className }: { project: string; contributions: Contribution[]; className?: string }) {
+export function ContributionBlocks({ project, contributions, className, reveal = false }: ContributionBlocksProps) {
   return (
-    <div className={className ? `blocks ${className}` : 'blocks'} data-testid={`contributions-${project}`}>
-      {contributions.map((contribution) => (
-        <div className="block body" key={contribution.id} data-testid={`contribution-${project}-${contribution.id}`}>
+    <div className={className ? `blocks ${className}` : 'blocks'} data-testid={`contributions-${project}`} data-reveal={reveal ? '' : undefined}>
+      {contributions.map((contribution, index) => (
+        <div
+          className="block body arrive"
+          style={{ '--i': index } as CSSProperties}
+          key={contribution.id}
+          data-testid={`contribution-${project}-${contribution.id}`}
+        >
           <h4 className="block__label">{contribution.label}</h4>
           {contribution.body.map((sentence) => (
             <p key={sentence}>{sentence}</p>

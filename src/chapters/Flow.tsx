@@ -8,16 +8,23 @@ export interface FlowProps {
   /** Ids of the steps to highlight, or an empty list to show every step equally. */
   active?: readonly string[];
   className?: string;
+  /** Marks the figure for the scroll reveal tracker. */
+  reveal?: boolean;
 }
 
 /**
  * A labelled row of named steps. The selected contribution highlights its
  * steps; with nothing selected every step reads equally.
  */
-export function Flow({ project, title, steps, active = [], className }: FlowProps) {
+export function Flow({ project, title, steps, active = [], className, reveal = false }: FlowProps) {
   const highlighting = active.length > 0;
   return (
-    <figure className={className ? `flow ${className}` : 'flow'} data-testid={`flow-${project}`} data-highlighting={highlighting ? 'true' : 'false'}>
+    <figure
+      className={className ? `flow ${className}` : 'flow'}
+      data-testid={`flow-${project}`}
+      data-highlighting={highlighting ? 'true' : 'false'}
+      data-reveal={reveal ? '' : undefined}
+    >
       <figcaption className="flow__title label">{title}</figcaption>
       <ol className="flow__steps">
         {steps.map((step) => {

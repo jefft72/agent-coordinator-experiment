@@ -7,9 +7,10 @@
    name, a small stat row, and a reading column on the right. Hairlines only,
    no bordered boxes. */
 
-/* Air after the VENTURES title, between the stories, and before About. */
+/* The Diffex name follows the VENTURES title closely enough to arrive with
+   it on the takeover; more air sits between the stories and before About. */
 .venture--diffex {
-  padding-top: clamp(88px, 14vh, 168px);
+  padding-top: clamp(48px, 7vh, 80px);
 }
 .venture--uplate {
   margin-top: clamp(112px, 16vh, 192px);
@@ -179,6 +180,19 @@
   border: 1px solid var(--rule);
 }
 
+/* Arrival of the UPlate story: the gallery frame opens from its outer edge
+   toward the name, like the hackathon media, while the name and text arrive
+   on the same progress. */
+@media (prefers-reduced-motion: no-preference) {
+  .venture--uplate .gallery {
+    clip-path: inset(0 calc((1 - var(--reveal, 1)) * 26%) 0 0);
+  }
+  .venture--uplate .gallery__slide .media img {
+    transform: scale(calc(1 + (1 - var(--reveal, 1)) * 0.06));
+    transform-origin: 0 0;
+  }
+}
+
 @media (max-width: 1199px) {
   .blocks.venture-uplate__blocks {
     grid-template-columns: minmax(0, 1fr);
@@ -196,7 +210,7 @@
 
 @media (max-width: 767px) {
   .venture--diffex {
-    padding-top: clamp(72px, 12vh, 120px);
+    padding-top: clamp(40px, 6vh, 64px);
   }
   .venture--uplate {
     margin-top: clamp(88px, 12vh, 136px);

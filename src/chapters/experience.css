@@ -1,16 +1,23 @@
-/* 02 / Experience: the one light surface. The chapter title gets a tall band
-   of air, then each role is a long-form article: a narrow employer rail on
-   the left (sticky on desktop) beside a wide reading field whose typography
-   and one factual drawing carry the weight. Hairlines in --rule only; no
-   boxes around articles. */
+/* 02 / Experience: the one light surface. The chapter title and the first
+   role arrive together on the takeover, then each role is a long-form
+   article: a narrow employer rail on the left (sticky on desktop) beside a
+   wide reading field whose typography and one factual drawing carry the
+   weight. Hairlines in --rule only; no boxes around articles. */
 
 .experience {
   padding-bottom: clamp(112px, 14vh, 208px);
 }
 
-/* Air between EXPERIENCE and the first article. */
+/* The first article follows the title closely, so the role is part of the chapter's entrance. */
 .experience__articles {
-  padding-top: clamp(160px, 34vh, 400px);
+  padding-top: 56px;
+}
+
+/* The light surface advances over the held OpenCraft media (see hackathons.css). */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .experience {
+    margin-top: -32vh;
+  }
 }
 
 /* Article: rail (a third) beside the field (two thirds), like a narrow strip
@@ -259,6 +266,14 @@
   }
 }
 
+/* Tablets: the rail is narrow, so the employer heading steps down a size to
+   keep "Purdue Data Mine / RTX" on two lines without a dangling slash. */
+@media (min-width: 768px) and (max-width: 1099px) {
+  .experience .project__title {
+    font-size: clamp(36px, 4.4vw, 54px);
+  }
+}
+
 /* Narrow desktops and tablets: keep the rail, drop the margin column so the
    reading measure stays comfortable; figures and the legend follow their content. */
 @media (max-width: 1099px) {
@@ -288,33 +303,95 @@
   }
 }
 
-/* Mobile: one column. Rail above field, drawings scale to the column, the
-   schematic stacks with arrows pointing down. */
+/* Mobile: one column in reading order. The rail, field, and header dissolve
+   into the article's grid so the employer name is followed at once by the
+   work lead, then the facts condensed to one compact line, then the summary.
+   Drawings scale to the column and the schematic stacks with arrows pointing
+   down. */
 @media (max-width: 767px) {
   .experience {
     padding-bottom: 112px;
   }
   .experience__articles {
-    padding-top: 96px;
+    padding-top: 40px;
   }
   .experience__article {
-    display: block;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
     padding-top: 32px;
   }
   .experience__article + .experience__article {
     margin-top: 96px;
   }
+  .experience__rail,
+  .experience__field,
+  .experience__header {
+    display: contents;
+  }
+  .experience__article .project__title {
+    order: 1;
+  }
+  .experience__article .project__lead {
+    order: 2;
+    margin-top: 18px;
+  }
   .experience__facts {
+    order: 3;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 0;
+    margin-top: 14px;
+    max-width: none;
+    padding-top: 12px;
+    border-top: 1px solid var(--rule);
+  }
+  .experience__fact {
+    padding: 0;
+    border: 0;
+    font: 400 var(--small-size) / 1.45 var(--text);
+    color: var(--paper-dim);
+  }
+  .experience__fact dt {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .experience__fact dd {
+    font: inherit;
+    color: inherit;
+  }
+  .experience__fact:not(:last-child) dd::after {
+    content: '\00B7';
+    margin: 0 0.5em;
+    color: var(--paper-faint);
+  }
+  .experience__meta {
+    display: none;
+  }
+  .experience__figures {
+    order: 4;
     margin-top: 24px;
   }
-  .experience__field {
-    margin-top: 48px;
+  .experience__summary {
+    order: 5;
+    margin-top: 20px;
   }
-  .experience__header {
-    gap: 20px;
+  .experience__diagram {
+    order: 6;
   }
   .experience__scope {
+    order: 7;
     margin-top: 48px;
+  }
+  .experience__evidence {
+    order: 8;
+    margin-top: 48px;
+  }
+  .experience__links {
+    order: 9;
   }
   .experience__scope .blocks {
     row-gap: 24px;

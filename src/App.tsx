@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Loader } from './loader/Loader';
 import { useLoadSequence, type SceneStatus } from './loader/useLoadSequence';
 import { installMotionControllers } from './lib/controllers';
+import { installRevealTracker } from './lib/reveal';
 import { installZoneTracker } from './lib/zones';
 import { useInitialFragment } from './lib/useInitialFragment';
 import { Opening } from './opening/Opening';
@@ -21,6 +22,7 @@ export default function App() {
 
   useEffect(() => installMotionControllers(), []);
   useEffect(() => installZoneTracker(), []);
+  useEffect(() => installRevealTracker(), []);
   useInitialFragment(sequence.state);
 
   return (

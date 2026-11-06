@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { chapters, hackathonProjects } from '../content/site';
 import type { Contribution, Project } from '../content/types';
 import { ChapterEntry } from './ChapterEntry';
@@ -63,6 +63,8 @@ function Spread({ project, media, zone, surface, eager = false }: SpreadProps) {
       data-testid={`project-${project.id}`}
       data-zone={zone}
       data-chapter={zone ? 'hackathons' : undefined}
+      data-reveal=""
+      data-reveal-span="0.8"
       aria-labelledby={titleId}
     >
       <div className="chapter__inner spread__grid">
@@ -80,15 +82,16 @@ function Spread({ project, media, zone, surface, eager = false }: SpreadProps) {
           </ul>
         </header>
 
-        {evidence ? <Media className="spread__media" item={evidence} eager={eager} /> : null}
+        {evidence ? <Media className={media === 'left' ? 'spread__media recedes' : 'spread__media'} item={evidence} eager={eager} /> : null}
 
-        <div className="spread__contrib">
+        <div className="spread__contrib arrive" data-reveal="">
           <ContributionTabs project={project.id} contributions={project.contributions} onSelect={setSelected} />
         </div>
 
         {project.flow ? (
           <Flow
-            className="spread__flow"
+            className="spread__flow arrive"
+            reveal
             project={project.id}
             title={project.flow.title}
             steps={project.flow.steps}
@@ -96,7 +99,7 @@ function Spread({ project, media, zone, surface, eager = false }: SpreadProps) {
           />
         ) : null}
 
-        <div className="spread__proof">
+        <div className="spread__proof arrive" data-reveal="">
           <p className="label spread__role">{project.role}</p>
           <ul className="links">
             {links.map((link) => (
@@ -129,9 +132,9 @@ export function Hackathons() {
     >
       <div className="chapter__inner">
         <ChapterEntry chapter={chapter} aside="Two team projects, two track wins">
-          <ul className="hack__index" data-testid="hackathons-index">
-            {hackathonProjects.map((project) => (
-              <li className="hack__index-item" key={project.id}>
+          <ul className="hack__index" data-testid="hackathons-index" data-reveal="">
+            {hackathonProjects.map((project, index) => (
+              <li className="hack__index-item arrive" style={{ '--i': index } as CSSProperties} key={project.id}>
                 <a className="hack__index-name" href={`#project-${project.id}`}>
                   {project.name}
                 </a>

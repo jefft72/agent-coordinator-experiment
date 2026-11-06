@@ -4,9 +4,9 @@
 .hack__index {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 32px 48px;
-  margin-top: 48px;
-  padding-top: 20px;
+  gap: 24px 48px;
+  margin-top: 30px;
+  padding-top: 16px;
   border-top: 1px solid var(--rule);
 }
 .hack__index-name {
@@ -23,7 +23,7 @@
   text-underline-offset: 0.12em;
 }
 .hack__index-event {
-  margin-top: 12px;
+  margin-top: 8px;
 }
 .hack__index-titles {
   margin-top: 4px;
@@ -36,12 +36,14 @@
   margin-top: 2px;
 }
 
-/* Spreads */
+/* Spreads. The first follows the index closely so the real media is inside
+   the chapter's first viewport; the second keeps more air above it because
+   the surface changes there. */
 
 .spread {
   position: relative;
-  margin-top: 96px;
-  padding: 88px 0 112px;
+  margin-top: 40px;
+  padding: 56px 0 112px;
   background: var(--field);
   scroll-margin-top: var(--header-clearance);
 }
@@ -50,6 +52,56 @@
 }
 .spread--media-left {
   padding-top: 112px;
+}
+
+/* Arrival: the title block slides in from its text side and settles first;
+   the media frame opens from the outer edge toward it over a longer, visible
+   interval (the spread's reveal span is 0.8 of the viewport), the picture
+   easing from a slightly tighter crop until it holds undistorted for reading.
+   OpenCraft mirrors every direction. The lower parts arrive on their own. */
+@media (prefers-reduced-motion: no-preference) {
+  .spread__head {
+    --slide: -56px;
+    --settle: min(1, calc(var(--reveal, 1) * 1.6));
+    transform: translateX(calc((1 - var(--settle)) * var(--slide)));
+    opacity: var(--settle);
+  }
+  .spread--media-left .spread__head {
+    --slide: 56px;
+  }
+  .spread__media {
+    clip-path: inset(0 0 0 calc((1 - var(--reveal, 1)) * 26%));
+  }
+  .spread--media-left .spread__media {
+    clip-path: inset(0 calc((1 - var(--reveal, 1)) * 26%) 0 0);
+  }
+  .spread__media img {
+    --drift: -3%;
+    transform: translateX(calc((1 - var(--reveal, 1)) * var(--drift))) scale(calc(1 + (1 - var(--reveal, 1)) * 0.1));
+  }
+  .spread--media-left .spread__media img {
+    --drift: 3%;
+  }
+}
+
+/* The cover event. On desktop the OpenCraft media holds at the top of the
+   viewport while its right column reads past, then the Experience surface
+   rises over the held media (Experience starts 32vh above the end of this
+   chapter), and the media sinks back under it through --covered. The text
+   stays in normal flow throughout; phones and reduced motion keep the plain
+   document order. */
+@media (min-width: 1024px) and (prefers-reduced-motion: no-preference) {
+  .spread--media-left {
+    padding-bottom: 0;
+  }
+  .spread--media-left .spread__grid {
+    /* The overlap plus a margin, so the paper edge never reaches the proof links. */
+    padding-bottom: calc(32vh + 56px);
+  }
+  .spread--media-left .spread__media {
+    position: sticky;
+    top: calc(var(--header-clearance) + 16px);
+  }
 }
 
 .spread__grid {
@@ -67,13 +119,38 @@
     'contrib flow'
     'proof flow';
 }
+/* OpenCraft changes the composition: the media holds the whole left column
+   while the title, controls, schematic, and proof read down the right. */
 .spread--media-left .spread__grid {
   grid-template-columns: minmax(0, 62fr) minmax(0, 38fr);
   grid-template-areas:
     'media head'
     'media contrib'
-    'flow contrib'
-    'flow proof';
+    'media flow'
+    'media proof';
+}
+.spread--media-left .spread__flow .flow__steps {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.spread--media-left .spread__flow .flow__step {
+  display: grid;
+  grid-template-columns: 2.5em 1fr;
+  column-gap: 12px;
+  padding-top: 10px;
+}
+.spread--media-left .spread__flow .flow__step::before {
+  margin-bottom: 0;
+  padding-top: 3px;
+}
+.spread--media-left .spread__flow .flow__step-note {
+  grid-column: 2;
+}
+.spread--media-left .spread__flow,
+.spread--media-left .spread__proof {
+  align-self: start;
 }
 .spread__head {
   grid-area: head;
@@ -161,8 +238,8 @@
     margin-top: 32px;
   }
   .spread {
-    margin-top: 64px;
-    padding: 56px 0 72px;
+    margin-top: 32px;
+    padding: 40px 0 72px;
   }
   .spread--media-left {
     padding-top: 72px;

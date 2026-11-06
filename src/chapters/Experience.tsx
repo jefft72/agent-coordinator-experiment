@@ -17,9 +17,11 @@ const chapter = chapters.find((entry) => entry.id === 'experience') ?? chapters[
 const FIGURES_BESIDE: Partial<Record<ProjectId, string>> = { judi: 'claims' };
 
 /**
- * 02 / Experience: a light surface, a tall band of air under the title, then
- * two long-form articles. Each article is a narrow employer rail (sticky on
- * desktop) beside a wide reading field that carries the engineering scope.
+ * 02 / Experience: the light surface takes over from the forest with the
+ * title and the first role arriving together, then two long-form articles.
+ * Each article is a narrow employer rail (sticky on desktop) beside a wide
+ * reading field that carries the engineering scope. On phones the rail and
+ * field collapse into one column with the facts condensed beside the lead.
  */
 export function Experience() {
   return (
@@ -29,17 +31,19 @@ export function Experience() {
       data-testid="chapter-experience"
       data-zone="experience"
       data-chapter="experience"
+      data-takeover=""
       aria-labelledby="experience-heading"
     >
       <div className="chapter__inner">
         <ChapterEntry chapter={chapter} aside={experienceProjects.map((project) => project.name).join(', ')} />
         <div className="experience__articles">
-          {experienceProjects.map((project) => (
+          {experienceProjects.map((project, index) => (
             <ExperienceArticle
               key={project.id}
               project={project}
               entry={experience.find((item) => item.project === project.id)}
               diagram={project.flow ? diagramFor(project, project.flow) : null}
+              first={index === 0}
             />
           ))}
         </div>
@@ -58,9 +62,11 @@ interface ExperienceArticleProps {
   project: Project;
   entry: ExperienceEntry | undefined;
   diagram: ReactNode;
+  /** The first article arrives with the chapter title on the takeover; later ones arrive on their own progress. */
+  first: boolean;
 }
 
-function ExperienceArticle({ project, entry, diagram }: ExperienceArticleProps) {
+function ExperienceArticle({ project, entry, diagram, first }: ExperienceArticleProps) {
   const besideId = FIGURES_BESIDE[project.id];
   const besideIndex = besideId ? project.contributions.findIndex((contribution) => contribution.id === besideId) : -1;
   const marginFigures = besideIndex >= 0 ? project.figures : [];
@@ -69,15 +75,26 @@ function ExperienceArticle({ project, entry, diagram }: ExperienceArticleProps) 
     '--rows': project.contributions.length,
     '--figure-row': besideIndex + 1,
   } as CSSProperties;
+  // The rail and the header travel on separate planes: with the takeover for
+  // the first article, staggered on the article's own reveal for the others.
+  const motion = first ? 'plane' : 'arrive';
+  const railStyle: CSSProperties = first ? ({ '--travel': '12vh' } as CSSProperties) : ({ '--i': 0 } as CSSProperties);
+  const headStyle: CSSProperties = first ? ({ '--travel': '16vh' } as CSSProperties) : ({ '--i': 1 } as CSSProperties);
+  const className = first ? 'experience__article experience__article--first' : 'experience__article';
 
   return (
-    <article className="experience__article" data-testid={`project-${project.id}`} aria-labelledby={`project-title-${project.id}`}>
+    <article
+      className={className}
+      data-testid={`project-${project.id}`}
+      data-reveal={first ? undefined : ''}
+      aria-labelledby={`project-title-${project.id}`}
+    >
       <div className="experience__rail">
-        <h3 className="project__title" id={`project-title-${project.id}`}>
+        <h3 className={`project__title ${motion}`} style={railStyle} id={`project-title-${project.id}`}>
           {project.name}
         </h3>
         {entry ? (
-          <dl className="experience__facts">
+          <dl className={`experience__facts ${motion}`} style={railStyle}>
             <div className="experience__fact">
               <dt className="label">Organisation</dt>
               <dd>{entry.organisation}</dd>
@@ -100,13 +117,15 @@ function ExperienceArticle({ project, entry, diagram }: ExperienceArticleProps) 
 
       <div className="experience__field">
         <header className="experience__header">
-          <p className="project__lead">{project.kind}</p>
-          <p className="experience__meta">
+          <p className={`project__lead ${motion}`} style={headStyle}>
+            {project.kind}
+          </p>
+          <p className={`experience__meta ${motion}`} style={headStyle}>
             <span className="experience__role">{project.role}</span>
             {project.dates ? <span className="experience__dates">{project.dates}</span> : null}
           </p>
           {headerFigures.length > 0 ? (
-            <ul className="experience__figures">
+            <ul className={`experience__figures ${motion}`} style={headStyle}>
               {headerFigures.map((figure) => (
                 <li className="experience__figure" key={figure}>
                   {figure}
@@ -114,12 +133,18 @@ function ExperienceArticle({ project, entry, diagram }: ExperienceArticleProps) 
               ))}
             </ul>
           ) : null}
-          <p className="summary experience__summary">{project.summary}</p>
+          <p className={`summary experience__summary ${motion}`} style={headStyle}>
+            {project.summary}
+          </p>
         </header>
 
-        {diagram}
+        {diagram ? (
+          <div className="experience__diagram arrive" data-reveal="">
+            {diagram}
+          </div>
+        ) : null}
 
-        <div className="experience__scope" style={scopeStyle}>
+        <div className="experience__scope arrive" style={scopeStyle} data-reveal="">
           <ContributionBlocks project={project.id} contributions={project.contributions} />
           {marginFigures.length > 0 ? (
             <ul className="experience__figures experience__figures--margin">
@@ -133,7 +158,7 @@ function ExperienceArticle({ project, entry, diagram }: ExperienceArticleProps) 
         </div>
 
         {project.evidence.length > 0 ? (
-          <div className="experience__evidence">
+          <div className="experience__evidence arrive" data-reveal="">
             {project.evidence.map((item) => (
               <Media item={item} key={item.src} />
             ))}
@@ -141,7 +166,7 @@ function ExperienceArticle({ project, entry, diagram }: ExperienceArticleProps) 
         ) : null}
 
         {project.links.length > 0 ? (
-          <p className="links experience__links">
+          <p className="links experience__links arrive" data-reveal="">
             {project.links.map((link) => (
               <ContentLink link={link} className="link--strong" key={link.href} />
             ))}

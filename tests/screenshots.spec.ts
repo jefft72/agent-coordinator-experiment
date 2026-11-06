@@ -82,7 +82,12 @@ async function chapterShots(prefix: string, page: Page) {
   await page.screenshot({ path: shot(`${prefix}-full`, page), fullPage: true });
 }
 
-/** One continuous recording: cold load, then native wheel scrolling from the name through both wins into Experience. */
+/**
+ * One continuous recording: cold load, then native scrolling down the whole
+ * page and back up to the name, with frames at the handoff, each spread's
+ * arrival, and each chapter's takeover in both directions, then a real
+ * contribution change and a real proof link.
+ */
 async function journey(browser: Browser, baseURL: string | undefined, name: string, viewport: { width: number; height: number }, mobile: boolean) {
   fs.mkdirSync(SCREENS_DIR, { recursive: true });
   const context = await browser.newContext({
@@ -102,15 +107,51 @@ async function journey(browser: Browser, baseURL: string | undefined, name: stri
     await page.mouse.move(400, 300);
     await page.waitForTimeout(300);
   }
-  const experienceTop = await page.evaluate(() => (document.getElementById('experience')?.getBoundingClientRect().top ?? 0) + window.scrollY);
+  const marks = await page.evaluate(() => {
+    const top = (id: string) => (document.getElementById(id)?.getBoundingClientRect().top ?? 0) + window.scrollY;
+    return {
+      end: document.getElementById('opening')?.offsetHeight ?? 0,
+      animalabs: top('project-animalabs'),
+      opencraft: top('project-opencraft'),
+      experience: top('experience'),
+      ventures: top('ventures'),
+      about: top('about'),
+      max: document.documentElement.scrollHeight - window.innerHeight,
+    };
+  });
+  const vh = viewport.height;
+  const frames: Array<[string, number]> = [
+    ['handoff-25', marks.end * 0.25],
+    ['handoff-50', marks.end * 0.5],
+    ['handoff-75', marks.end * 0.75],
+    ['animalabs-arriving', marks.animalabs - vh * 0.6],
+    ['opencraft-arriving', marks.opencraft - vh * 0.6],
+    ['experience-cover-40', marks.experience - vh * 0.6],
+    ['experience-cover-80', marks.experience - vh * 0.3],
+    ['ventures-takeover', marks.ventures - vh * 0.55],
+    ['about-takeover', marks.about - vh * 0.55],
+  ];
   const step = mobile ? 70 : 110;
-  for (let guard = 0; guard < 400; guard += 1) {
-    const y = await page.evaluate(() => window.scrollY);
-    if (y >= experienceTop + viewport.height * 0.3) break;
-    if (mobile) await page.evaluate((dy) => window.scrollBy({ top: dy, behavior: 'instant' }), step);
-    else await page.mouse.wheel(0, step);
-    await page.waitForTimeout(40);
-  }
+  const scroll = async (direction: 1 | -1) => {
+    const pending = frames.map(([label, y]) => ({ label, y }));
+    for (let guard = 0; guard < 2_000; guard += 1) {
+      const y = await page.evaluate(() => window.scrollY);
+      if (direction > 0 ? y >= marks.max - 1 : y <= 0) break;
+      for (const frame of [...pending]) {
+        if (direction > 0 ? y >= frame.y : y <= frame.y) {
+          pending.splice(pending.indexOf(frame), 1);
+          await page.waitForTimeout(80);
+          await page.screenshot({ path: shot(`${name}-${direction > 0 ? 'down' : 'up'}-${frame.label}`, page) });
+        }
+      }
+      if (mobile) await page.evaluate((dy) => window.scrollBy({ top: dy, behavior: 'instant' }), step * direction);
+      else await page.mouse.wheel(0, step * direction);
+      await page.waitForTimeout(40);
+    }
+  };
+  await scroll(1);
+  await page.waitForTimeout(700);
+  await scroll(-1);
   await page.waitForTimeout(700);
   // A real contribution change and a real proof link, then back to the chapter.
   await page.locator('#project-animalabs').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'smooth' }));

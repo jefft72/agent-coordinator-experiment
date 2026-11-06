@@ -4,6 +4,7 @@
   /* Base relationship: near-black field, near-white type. */
   --field: #0a0b0d;
   --paper: #f5f5f2;
+  --paper-soft: rgba(245, 245, 242, 0.82);
   --paper-dim: rgba(245, 245, 242, 0.62);
   --paper-faint: rgba(245, 245, 242, 0.34);
   --rule: rgba(245, 245, 242, 0.14);
@@ -24,6 +25,7 @@
 
   /* Ink set used on the light surface. */
   --ink: #0a0b0d;
+  --ink-soft: rgba(10, 11, 13, 0.82);
   --ink-dim: rgba(10, 11, 13, 0.64);
   --ink-faint: rgba(10, 11, 13, 0.36);
   --ink-rule: rgba(10, 11, 13, 0.16);
@@ -87,5 +89,13 @@ html[data-zone='about'] {
     --body-size: 16px;
     --small-size: 13px;
     --nav-size: 14px;
+  }
+}
+
+/* Narrow phones wrap the navigation to two rows, so the header is taller and
+   anchors must stop further down. Kept beside the header rule in opening.css. */
+@media (max-width: 479px) {
+  :root {
+    --header-clearance: 80px;
   }
 }

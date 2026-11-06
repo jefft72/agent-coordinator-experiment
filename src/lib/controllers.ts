@@ -1,4 +1,4 @@
-import { FOLD_START, motion } from '../scene/motion';
+import { FOLD_END, FOLD_START, motion } from '../scene/motion';
 
 function clamp01(v: number): number {
   return v < 0 ? 0 : v > 1 ? 1 : v;
@@ -17,8 +17,9 @@ export type HandoffState = 'rest' | 'moving' | 'done';
  * The handoff is measured against the opening's height: the first chapter
  * rises over the pinned opening at scroll speed, so the opening is covered
  * exactly when the page has scrolled its height. Over that distance the
- * name recedes (CSS, from --handoff), and over its last part the sculpture
- * folds out of the reading plane. Once covered, the scene stops rendering
+ * name and identity recede (CSS, from --handoff and --handoff-px) ahead of
+ * the rising surface, and the sculpture folds out of the reading plane
+ * between FOLD_START and FOLD_END. Once covered, the scene stops rendering
  * and the opening is hidden until the reader scrolls back.
  */
 export function installMotionControllers(): () => void {
@@ -41,10 +42,11 @@ export function installMotionControllers(): () => void {
     const opening = document.getElementById('opening');
     const end = Math.max(1, opening?.offsetHeight ?? vh);
     const progress = clamp01(y / end);
-    const fold = motion.reducedMotion ? 0 : easeInOut(clamp01((progress - FOLD_START) / (1 - FOLD_START)));
+    const fold = motion.reducedMotion ? 0 : easeInOut(clamp01((progress - FOLD_START) / (FOLD_END - FOLD_START)));
     motion.fold = fold;
     motion.active = progress < 1;
     root.style.setProperty('--handoff', progress.toFixed(4));
+    root.style.setProperty('--handoff-px', `${Math.round(Math.min(y, end))}px`);
     root.style.setProperty('--fold', fold.toFixed(4));
     const state: HandoffState = progress <= 0 ? 'rest' : progress < 1 ? 'moving' : 'done';
     if (state !== lastState) {
@@ -96,6 +98,7 @@ export function installMotionControllers(): () => void {
     reduced.removeEventListener('change', onReduced);
     delete root.dataset.handoff;
     root.style.removeProperty('--handoff');
+    root.style.removeProperty('--handoff-px');
     root.style.removeProperty('--fold');
   };
 }

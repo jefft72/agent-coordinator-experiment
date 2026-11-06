@@ -26,7 +26,10 @@ export const motion: MotionState = {
 
 /**
  * The handoff is the scroll distance over which the first chapter rises over
- * the pinned opening: the opening's own height. The sculpture folds away over
- * the last part of it, as a fraction of that distance.
+ * the pinned opening: the opening's own height. The sculpture folds away
+ * between these two fractions of that distance, so it is clearly moving by
+ * the time the chapter's surface reaches it and has left the reading plane
+ * before the surface covers the last of the opening.
  */
-export const FOLD_START = 0.45;
+export const FOLD_START = 0.18;
+export const FOLD_END = 0.92;

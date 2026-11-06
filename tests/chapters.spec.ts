@@ -185,6 +185,174 @@ test.describe('chapters', () => {
     expect(seen).toEqual(['award-animalabs', 'award-opencraft']);
   });
 
+  test('the hackathon media arrives inside the chapter viewport and the first role arrives with Experience', async ({ page }, testInfo) => {
+    const vh = page.viewportSize()?.height ?? 0;
+    const clearance = await page.evaluate(() => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-clearance')));
+    // Land the chapter under the header the way the navigation does, let the arrivals settle, then measure what the reader sees.
+    await page.locator('#hackathons').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
+    await waitForScrollIdle(page, 200);
+    await page.waitForTimeout(200);
+    const media = await requireBox(article(page, 'animalabs').locator('img').first());
+    if (testInfo.project.name === 'desktop') {
+      expect(media.y, 'the real AnimaLabs media starts inside the first Hackathons viewport').toBeLessThan(vh * 0.6);
+      expect(media.y + media.height, 'and at least half of it shows there').toBeGreaterThan(vh);
+    }
+    await page.locator('#experience').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
+    await waitForScrollIdle(page, 200);
+    await page.waitForTimeout(250);
+    const heading = await requireBox(page.locator('h2#experience-heading'));
+    const judi = article(page, 'judi');
+    const judiBox = await requireBox(judi);
+    const lead = await requireBox(judi.locator('.project__lead'));
+    expect(heading.y, 'the chapter heading is placed under the header').toBeGreaterThanOrEqual(clearance - 2);
+    expect(judiBox.y - (heading.y + heading.height), 'no blank band between EXPERIENCE and the first role').toBeLessThanOrEqual(120);
+    expect(lead.y, 'the Firecracker lead is inside the first Experience viewport').toBeLessThan(vh * 0.75);
+    if (testInfo.project.name === 'mobile') {
+      const title = await requireBox(judi.locator('h3.project__title'));
+      expect(lead.y - title.y, 'on phones the lead follows the employer name directly').toBeLessThanOrEqual(120);
+      const facts = await requireBox(judi.locator('dl.experience__facts'));
+      expect(facts.y, 'the condensed facts sit right after the lead').toBeGreaterThan(lead.y);
+      expect(facts.y - (lead.y + lead.height)).toBeLessThanOrEqual(40);
+      expect(facts.height, 'the facts read as a compact block, not a ledger').toBeLessThanOrEqual(120);
+    }
+  });
+
+  test('arrivals and takeovers are scroll-linked, settle in reading position, and reverse on the way back up', async ({ page }) => {
+    const spread = article(page, 'opencraft');
+    const head = spread.locator('.spread__head');
+    const readSpread = () =>
+      spread.evaluate((el) => ({
+        state: el.dataset.revealState,
+        reveal: Number(el.style.getPropertyValue('--reveal')),
+        transform: getComputedStyle(el.querySelector('.spread__head')!).transform,
+        opacity: Number(getComputedStyle(el.querySelector('.spread__head')!).opacity),
+        clip: getComputedStyle(el.querySelector('.spread__media')!).clipPath,
+      }));
+    const placeTop = async (selector: string, fraction: number) => {
+      await page.evaluate(
+        ({ selector, fraction }) => {
+          const top = document.querySelector(selector)!.getBoundingClientRect().top + window.scrollY;
+          window.scrollTo({ top: top - window.innerHeight * fraction, behavior: 'instant' });
+        },
+        { selector, fraction },
+      );
+      await page.waitForTimeout(120);
+    };
+
+    // Far below the viewport: pending, moved aside, and transparent, but fully in the document.
+    let state = await readSpread();
+    expect(state.state).toBe('pending');
+    expect(state.reveal).toBe(0);
+    expect(state.opacity).toBe(0);
+    expect(state.clip).not.toBe('none');
+    await expect(head).toHaveCount(1);
+
+    // Top edge at 85% of the viewport: arriving, part way through its travel.
+    await placeTop('#project-opencraft', 0.85);
+    state = await readSpread();
+    expect(state.state).toBe('arriving');
+    expect(state.reveal).toBeGreaterThan(0);
+    expect(state.reveal).toBeLessThan(1);
+    expect(state.opacity).toBeGreaterThan(0);
+    expect(state.opacity).toBeLessThan(1);
+    expect(state.transform).not.toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+    const midway = state.reveal;
+
+    // In the reading zone: settled, no transform, no clip, full opacity.
+    await placeTop('#project-opencraft', 0.15);
+    state = await readSpread();
+    expect(state.state).toBe('settled');
+    expect(state.reveal).toBe(1);
+    expect(state.opacity).toBe(1);
+    expect(state.transform).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+    expect(state.clip).toMatch(/^(none|inset\(0(px)? 0(px)? 0(px)? 0(px)?\))$/);
+    await expect(head.locator('h3')).toBeVisible();
+
+    // Back up to the same position: the same intermediate value, so the motion is reversible.
+    await placeTop('#project-opencraft', 0.85);
+    state = await readSpread();
+    expect(state.state).toBe('arriving');
+    expect(state.reveal).toBeCloseTo(midway, 2);
+
+    // The Experience takeover: its surface rising writes --takeover on itself and --covered on the chapter
+    // beneath; only the OpenCraft media plane recedes, and every word of the outgoing spread stays opaque.
+    await placeTop('#experience', 0.65);
+    const takeover = await page.evaluate(() => {
+      const opaque = (selector: string) => Number(getComputedStyle(document.querySelector(selector)!).opacity);
+      return {
+        takeover: Number(document.getElementById('experience')!.style.getPropertyValue('--takeover')),
+        covered: Number(document.getElementById('hackathons')!.style.getPropertyValue('--covered')),
+        title: getComputedStyle(document.getElementById('experience-heading')!).transform,
+        recedes: getComputedStyle(document.querySelector('#project-opencraft .recedes')!).transform,
+        recedesIsMedia: document.querySelector('#project-opencraft .recedes')!.classList.contains('spread__media'),
+        mediaOpacity: opaque('#project-opencraft .recedes'),
+        textOpacity: [
+          opaque('#project-opencraft [role="tabpanel"]'),
+          opaque('#project-opencraft [data-testid="flow-opencraft"]'),
+          opaque('#project-opencraft .spread__proof'),
+          opaque('#project-opencraft .spread__head'),
+        ],
+      };
+    });
+    expect(takeover.takeover).toBeGreaterThan(0);
+    expect(takeover.takeover).toBeLessThan(1);
+    expect(takeover.covered).toBeCloseTo(takeover.takeover, 3);
+    expect(takeover.title).not.toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+    expect(takeover.recedesIsMedia).toBe(true);
+    expect(takeover.recedes).not.toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+    expect(takeover.mediaOpacity).toBe(1);
+    expect(takeover.textOpacity).toEqual([1, 1, 1, 1]);
+    await placeTop('#experience', 0.05);
+    const settled = await page.evaluate(() => ({
+      takeover: Number(document.getElementById('experience')!.style.getPropertyValue('--takeover')),
+      title: getComputedStyle(document.getElementById('experience-heading')!).transform,
+      lead: getComputedStyle(document.querySelector('[data-testid="project-judi"] .project__lead')!).transform,
+    }));
+    expect(settled.takeover).toBe(1);
+    expect(settled.title).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+    expect(settled.lead).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+    for (const id of ['ventures', 'about']) {
+      await expect(page.locator(`#${id}`)).toHaveAttribute('data-takeover', '');
+    }
+  });
+
+  test('desktop: the OpenCraft media holds while the light Experience surface advances over it', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'desktop');
+    const clearance = await page.evaluate(() => Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-clearance')));
+    const media = article(page, 'opencraft').locator('figure.spread__media');
+    expect(await media.evaluate((el) => getComputedStyle(el).position)).toBe('sticky');
+    // Read down the right column: the media stays at the top of the viewport while the text scrolls.
+    await page.locator('#project-opencraft .spread__proof').evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
+    await page.waitForTimeout(150);
+    let box = await requireBox(media);
+    expect(Math.round(box.y), 'the media is held under the header').toBe(Math.round(clearance + 16));
+    // The cover: Experience's surface rises over the held media before the media is pushed away.
+    await page.evaluate(() => {
+      const top = document.getElementById('experience')!.getBoundingClientRect().top + window.scrollY;
+      window.scrollTo({ top: top - window.innerHeight * 0.55, behavior: 'instant' });
+    });
+    await page.waitForTimeout(150);
+    box = await requireBox(media);
+    const experience = await requireBox(chapter(page, 'experience'));
+    expect(experience.y, 'the paper edge has risen above the bottom of the held media').toBeLessThan(box.y + box.height);
+    expect(experience.y, 'and the media is still visible above it').toBeGreaterThan(box.y + 40);
+    expect(box.y, 'the media is still held, not pushed').toBeLessThanOrEqual(clearance + 16 + 1);
+    const text = await page.evaluate(() =>
+      ['[role="tabpanel"]', '[data-testid="flow-opencraft"]', '.spread__proof'].map((s) => Number(getComputedStyle(document.querySelector(`#project-opencraft ${s}`)!).opacity)),
+    );
+    expect(text).toEqual([1, 1, 1]);
+    // Under reduced motion the same reader meets plain document order: no hold, no overlap.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForTimeout(100);
+    expect(await media.evaluate((el) => getComputedStyle(el).position)).not.toBe('sticky');
+    const stacked = await page.evaluate(() => {
+      const hack = document.getElementById('hackathons')!.getBoundingClientRect();
+      const exp = document.getElementById('experience')!.getBoundingClientRect();
+      return exp.top - hack.bottom;
+    });
+    expect(Math.round(stacked)).toBe(0);
+  });
+
   test('the AnimaLabs controls change the explanation and highlight the matching steps', async ({ page }) => {
     const project = projectById.animalabs;
     const panel = contributionPanel(page, project.id);
@@ -214,6 +382,32 @@ test.describe('chapters', () => {
     await page.keyboard.press('Home');
     await expect(contributionTab(page, project.id, 'research')).toBeFocused();
     await expect(panel).toHaveAttribute('data-contribution', 'research');
+
+    // Inactive steps stay readable with a single dim, not alpha on top of opacity; the selected step is told by rule and weight.
+    await contributionTab(page, project.id, 'analyst').click();
+    const steps = await page.evaluate((id) => {
+      const read = (step: string) => {
+        const el = document.querySelector<HTMLElement>(`[data-testid="flow-step-${id}-${step}"]`)!;
+        const label = el.querySelector<HTMLElement>('.flow__step-label')!;
+        const alpha = (color: string) => {
+          const match = color.match(/rgba?\(\d+,\s*\d+,\s*\d+(?:,\s*([\d.]+))?\)/);
+          return match ? (match[1] === undefined ? 1 : Number(match[1])) : Number.NaN;
+        };
+        return {
+          opacity: Number(getComputedStyle(el).opacity),
+          labelAlpha: alpha(getComputedStyle(label).color),
+          weight: Number(getComputedStyle(label).fontWeight),
+          rule: getComputedStyle(el).borderTopWidth,
+        };
+      };
+      return { inactive: read('search'), active: read('compare') };
+    }, project.id);
+    expect(steps.inactive.opacity).toBe(1);
+    expect(steps.active.opacity).toBe(1);
+    expect(steps.inactive.labelAlpha).toBeGreaterThanOrEqual(0.8);
+    expect(steps.active.labelAlpha).toBe(1);
+    expect(steps.active.weight).toBeGreaterThan(steps.inactive.weight);
+    expect(Number.parseFloat(steps.active.rule)).toBeGreaterThan(Number.parseFloat(steps.inactive.rule));
 
     // The award, summary, and proof never move behind the controls.
     const node = article(page, project.id);
@@ -402,7 +596,15 @@ test.describe('chapters', () => {
     const transform = await page.locator('h1#name').evaluate((el) => getComputedStyle(el).transform);
     expect(transform, 'the name must not be scaled by scroll under reduced motion').toBe('none');
     expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--fold'))).toBe('0.0000');
+    expect(await page.locator('section#opening').evaluate((el) => getComputedStyle(el).position)).not.toBe('sticky');
     for (const id of CHAPTER_IDS) await expect(page.locator(`#${id}`)).toHaveCount(1);
+    // Nothing arrives or recedes: every chapter shows complete and in place at once.
+    const moved = await page.evaluate(() =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-reveal], [data-takeover], .spread__head, .recedes, .plane, .arrive'))
+        .filter((el) => el.style.getPropertyValue('--reveal') || el.style.getPropertyValue('--takeover') || el.dataset.revealState || getComputedStyle(el).opacity !== '1')
+        .map((el) => el.className.toString()),
+    );
+    expect(moved).toEqual([]);
     const tab = contributionTab(page, 'opencraft', 'testing');
     await tab.scrollIntoViewIfNeeded();
     await tab.click();

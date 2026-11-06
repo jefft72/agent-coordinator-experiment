@@ -171,6 +171,21 @@ test.describe('opening', () => {
     expect(handoff).toBeLessThan(0.6);
     const transform = await page.locator('h1#name').evaluate((el) => getComputedStyle(el).transform);
     expect(transform, 'the name recedes while the chapter rises').not.toBe('none');
+    expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--handoff-px'))).toMatch(/^\d+px$/);
+
+    // The identity plane stays ahead of the rising surface: at no point does the plum edge cut through the name.
+    for (const fraction of [0.2, 0.35, 0.5, 0.7, 0.85]) {
+      await scrollTo(page, Math.round(end * fraction));
+      await page.waitForTimeout(150);
+      const { nameBottom, nameOpacity, chapterTop } = await page.evaluate(() => ({
+        nameBottom: document.querySelector('h1#name')!.getBoundingClientRect().bottom,
+        nameOpacity: Number(getComputedStyle(document.querySelector('h1#name')!).opacity),
+        chapterTop: document.querySelector('section#hackathons')!.getBoundingClientRect().top,
+      }));
+      if (nameOpacity > 0.05) expect(nameBottom, `at ${fraction} of the handoff the surface edge must stay below the name`).toBeLessThan(chapterTop);
+    }
+    const fold = Number(await page.evaluate(() => document.documentElement.style.getPropertyValue('--fold')));
+    expect(fold, 'the sculpture has folded almost completely by 85% of the handoff').toBeGreaterThan(0.85);
 
     await scrollTo(page, end + 40);
     await page.waitForTimeout(350);
@@ -184,6 +199,128 @@ test.describe('opening', () => {
     await expect(htmlRoot(page)).toHaveAttribute('data-handoff', 'rest');
     await expect(scene(page)).toHaveAttribute('data-active', 'true');
     await expect(page.locator('h1#name')).toBeVisible();
+  });
+
+  test('desktop: reduced motion never pins or hides the opening and shows every chapter settled', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'desktop');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await gotoAndSettle(page, '/?intro=skip');
+    await page.mouse.wheel(0, 400);
+    await page.waitForTimeout(400);
+    const opening = await page.locator('section#opening').evaluate((el) => ({
+      position: getComputedStyle(el).position,
+      top: el.getBoundingClientRect().top,
+      visibility: getComputedStyle(el).visibility,
+    }));
+    expect(opening.position, 'the opening must not be sticky under reduced motion').not.toBe('sticky');
+    expect(Math.round(opening.top)).toBe(-400);
+    expect(opening.visibility).toBe('visible');
+    await scrollTo(page, (await openingHeight(page)) + 600);
+    await page.waitForTimeout(300);
+    expect(await page.locator('section#opening').evaluate((el) => getComputedStyle(el).visibility)).toBe('visible');
+    // No arrival or takeover is ever written, and every arriving element sits in place at full opacity.
+    const motion = await page.evaluate(() => {
+      const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-reveal], [data-takeover], .arrive, .plane, .recedes, .spread__head, .spread__media'));
+      return nodes
+        .map((el) => ({
+          tag: `${el.tagName.toLowerCase()}.${el.className.toString().split(' ')[0]}`,
+          reveal: el.style.getPropertyValue('--reveal'),
+          takeover: el.style.getPropertyValue('--takeover'),
+          state: el.dataset.revealState ?? '',
+          transform: getComputedStyle(el).transform,
+          opacity: getComputedStyle(el).opacity,
+          clip: getComputedStyle(el).clipPath,
+        }))
+        .filter((item) => item.reveal || item.takeover || item.state || !['none', 'matrix(1, 0, 0, 1, 0, 0)'].includes(item.transform) || item.opacity !== '1' || item.clip !== 'none');
+    });
+    expect(motion).toEqual([]);
+  });
+
+  test('desktop: the choreography follows a live change of the reduced-motion preference in both directions', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'desktop');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await gotoAndSettle(page, '/?intro=skip&webgl=off');
+    const placeExperience = async () => {
+      await page.evaluate(() => {
+        const top = document.getElementById('experience')!.getBoundingClientRect().top + window.scrollY;
+        window.scrollTo({ top: top - 700, behavior: 'instant' });
+      });
+      await page.waitForTimeout(200);
+    };
+    const read = () =>
+      page.evaluate(() => ({
+        takeover: document.getElementById('experience')!.style.getPropertyValue('--takeover'),
+        title: getComputedStyle(document.getElementById('experience-heading')!).transform,
+        written: document.querySelectorAll('[data-reveal][style*="--reveal"]').length,
+        openingPosition: getComputedStyle(document.getElementById('opening')!).position,
+      }));
+    await placeExperience();
+    let state = await read();
+    expect(state.takeover).toBe('');
+    expect(state.written).toBe(0);
+    expect(state.title).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+    expect(state.openingPosition).not.toBe('sticky');
+
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await placeExperience();
+    state = await read();
+    expect(Number(state.takeover)).toBeGreaterThan(0);
+    expect(Number(state.takeover)).toBeLessThan(1);
+    expect(state.written).toBeGreaterThan(0);
+    expect(state.title).not.toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+    expect(state.openingPosition).toBe('sticky');
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForTimeout(200);
+    state = await read();
+    expect(state.takeover).toBe('');
+    expect(state.written).toBe(0);
+    expect(state.title).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
+    expect(state.openingPosition).not.toBe('sticky');
+  });
+
+  test('desktop: tablet widths keep the employer headings on two lines inside the rail', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'desktop');
+    await page.setViewportSize({ width: 820, height: 1100 });
+    await gotoAndSettle(page, '/?intro=skip');
+    await page.locator('#experience').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' }));
+    await page.waitForTimeout(400);
+    const headings = await page.locator('section#experience h3.project__title').evaluateAll((nodes) =>
+      nodes.map((el) => {
+        const r = el.getBoundingClientRect();
+        const rail = el.parentElement!.getBoundingClientRect();
+        return { text: el.textContent, height: r.height, lineHeight: Number.parseFloat(getComputedStyle(el).lineHeight), right: r.right, railRight: rail.right };
+      }),
+    );
+    expect(headings.length).toBe(2);
+    for (const heading of headings) {
+      expect(heading.height, `"${heading.text}" should wrap to at most two lines`).toBeLessThanOrEqual(heading.lineHeight * 2 + 2);
+      expect(heading.right, `"${heading.text}" overflows its rail`).toBeLessThanOrEqual(heading.railRight + 1);
+    }
+    expect(await documentScrollWidth(page)).toBeLessThanOrEqual(820);
+  });
+
+  test('phones: every destination fits inside the viewport and anchors clear the taller header', async ({ page }, testInfo) => {
+    skipUnlessProject(testInfo, 'mobile', 'narrow');
+    await gotoAndSettle(page, '/?intro=skip');
+    const width = page.viewportSize()?.width ?? 0;
+    const links = await page.locator('header[data-testid="site-header"] nav a').evaluateAll((nodes) =>
+      nodes.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { text: el.textContent, left: r.left, right: r.right, bottom: r.bottom };
+      }),
+    );
+    expect(links.map((link) => link.text)).toEqual(nav.map((item) => item.label));
+    for (const link of links) {
+      expect(link.left, `${link.text} starts inside the viewport`).toBeGreaterThanOrEqual(0);
+      expect(link.right, `${link.text} ends inside the viewport`).toBeLessThanOrEqual(width);
+    }
+    const header = await page.evaluate(() => {
+      const el = document.querySelector('header[data-testid="site-header"]')!;
+      return { height: el.getBoundingClientRect().height, clearance: Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--header-clearance')) };
+    });
+    expect(Math.max(...links.map((link) => link.bottom)), 'the last row of links sits inside the header').toBeLessThanOrEqual(header.height);
+    expect(header.clearance, 'anchor clearance is derived from the real header height').toBeGreaterThanOrEqual(header.height);
   });
 
   test('phones: the opening scrolls away naturally instead of pinning', async ({ page }, testInfo) => {
