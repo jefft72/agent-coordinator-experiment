@@ -1,13 +1,14 @@
 import {
   BackSide,
-  BufferAttribute,
   Color,
   Mesh,
   MeshBasicMaterial,
   PlaneGeometry,
   PMREMGenerator,
   Scene,
+  ShaderMaterial,
   SphereGeometry,
+  Vector3,
   type Texture,
   type WebGLRenderer,
 } from 'three';
@@ -15,8 +16,8 @@ import {
 /**
  * Authored environment, prefiltered once with PMREM. No external HDR.
  *
- * The enclosure is one smooth sky painted per vertex, so the convex faces
- * reflect broad light-to-dark gradients with no visible cards: a graded base
+ * The enclosure is one smooth sky shaded per fragment, so the convex faces
+ * reflect broad light-to-dark gradients with no visible cards or facets: a graded base
  * (dim grey overhead, dark horizon, black floor) with two soft lobes added,
  * a wide white key low on the camera's left and a cooler, dimmer fill high
  * on the right and behind. One narrow cool strip far to the left is the only
@@ -40,38 +41,51 @@ function unit(v: Vec3): Vec3 {
   return [v[0] / len, v[1] / len, v[2] / len];
 }
 
-function lobe(x: number, y: number, z: number, direction: Vec3, power: number): number {
-  const d = Math.max(0, x * direction[0] + y * direction[1] + z * direction[2]);
-  return Math.pow(d, power);
-}
 
-function paintedSky(radius: number): { geometry: SphereGeometry; material: MeshBasicMaterial } {
-  const geometry = new SphereGeometry(radius, 96, 64);
-  const positions = geometry.getAttribute('position');
-  const colors = new Float32Array(positions.count * 3);
-  const top = new Color('#2c2f35');
-  const horizon = new Color('#121417');
-  const floor = new Color('#030304');
-  const key = new Color('#ffffff');
-  const fill = new Color('#c9d3e2');
-  const c = new Color();
-  for (let i = 0; i < positions.count; i++) {
-    const x = positions.getX(i) / radius;
-    const y = positions.getY(i) / radius;
-    const z = positions.getZ(i) / radius;
-    if (y >= 0) c.copy(horizon).lerp(top, Math.pow(y, 0.8));
-    else c.copy(horizon).lerp(floor, Math.pow(-y, 0.6));
-    const k = lobe(x, y, z, KEY_DIRECTION, 9) * 1.7;
-    const f = lobe(x, y, z, FILL_DIRECTION, 3) * 0.22;
-    c.r += key.r * k + fill.r * f;
-    c.g += key.g * k + fill.g * f;
-    c.b += key.b * k + fill.b * f;
-    colors[i * 3] = c.r;
-    colors[i * 3 + 1] = c.g;
-    colors[i * 3 + 2] = c.b;
+const SKY_VERTEX = /* glsl */ `
+  varying vec3 vDirection;
+  void main() {
+    vDirection = position;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
   }
-  geometry.setAttribute('color', new BufferAttribute(colors, 3));
-  const material = new MeshBasicMaterial({ vertexColors: true, side: BackSide });
+`;
+
+const SKY_FRAGMENT = /* glsl */ `
+  uniform vec3 top;
+  uniform vec3 horizon;
+  uniform vec3 floorColor;
+  uniform vec3 key;
+  uniform vec3 fill;
+  uniform vec3 keyDirection;
+  uniform vec3 fillDirection;
+  varying vec3 vDirection;
+  void main() {
+    vec3 d = normalize(vDirection);
+    vec3 c = d.y >= 0.0 ? mix(horizon, top, pow(d.y, 0.8)) : mix(horizon, floorColor, pow(-d.y, 0.6));
+    float k = pow(max(0.0, dot(d, keyDirection)), 9.0) * 1.7;
+    float f = pow(max(0.0, dot(d, fillDirection)), 3.0) * 0.22;
+    gl_FragColor = vec4(c + key * k + fill * f, 1.0);
+  }
+`;
+
+/** The sky is shaded per fragment, so its gradients have no facets for a polished surface to reveal. */
+function paintedSky(radius: number): { geometry: SphereGeometry; material: ShaderMaterial } {
+  const geometry = new SphereGeometry(radius, 32, 16);
+  const material = new ShaderMaterial({
+    side: BackSide,
+    depthWrite: false,
+    uniforms: {
+      top: { value: new Color('#2c2f35') },
+      horizon: { value: new Color('#121417') },
+      floorColor: { value: new Color('#030304') },
+      key: { value: new Color('#ffffff') },
+      fill: { value: new Color('#c9d3e2') },
+      keyDirection: { value: new Vector3(...KEY_DIRECTION) },
+      fillDirection: { value: new Vector3(...FILL_DIRECTION) },
+    },
+    vertexShader: SKY_VERTEX,
+    fragmentShader: SKY_FRAGMENT,
+  });
   return { geometry, material };
 }
 
