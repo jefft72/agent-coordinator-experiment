@@ -1,14 +1,15 @@
 import { useMemo } from 'react';
 import {
   EXTRUSION,
-  LETTERS,
-  THICKNESS,
-  centredOutline,
+  OUTLINES,
+  PARTS,
+  contours,
   layoutFor,
-  letterMatrix,
+  partMatrix,
   pixelsPerUnit,
   projectOutline,
-  type Letter,
+  thickness,
+  type Part,
   type Viewport,
 } from './monogram';
 import './scene-fallback.css';
@@ -21,58 +22,63 @@ export interface MonogramSvgProps {
 }
 
 interface Picture {
-  letter: Letter;
-  /** The silhouette at the back wall and at the front wall, in pixels. */
+  part: Part;
+  /** The cap contours (outer boundary, then holes) at the back and front cap planes, in pixels. */
   back: string;
   front: string;
-  /** Pixel bounds of the front silhouette, for the gradients. */
+  /** Pixel bounds of the front cap, for the gradients. */
   left: number;
   top: number;
   right: number;
   bottom: number;
-  /** Width of the bevel band in pixels. */
+  /** The bevel radius in pixels: the silhouette is the cap grown by this. */
   bevel: number;
 }
 
 const REST = { reveal: 1, fold: 0 };
 
-function pictureFor(letter: Letter, compact: boolean, viewport: Viewport): Picture {
+function pictureFor(part: Part, compact: boolean, viewport: Viewport): Picture {
   const layout = layoutFor(compact);
-  const matrix = letterMatrix(layout, viewport, letter, REST);
+  const matrix = partMatrix(layout, viewport, part, REST);
   const aspect = viewport.width / viewport.height;
-  const outline = centredOutline(letter);
-  const toPath = (z: number, track: boolean, out: Picture) => {
-    const parts: string[] = [];
-    projectOutline(outline, z, matrix, layout.fov, aspect).forEach((s, i) => {
-      const x = s.x * viewport.width;
-      const y = s.y * viewport.height;
-      parts.push(`${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`);
-      if (track) {
-        out.left = Math.min(out.left, x);
-        out.right = Math.max(out.right, x);
-        out.top = Math.min(out.top, y);
-        out.bottom = Math.max(out.bottom, y);
-      }
-    });
-    return `${parts.join(' ')} Z`;
-  };
-  const picture: Picture = { letter, back: '', front: '', left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, bevel: 0 };
-  picture.back = toPath(-THICKNESS / 2, false, picture);
-  picture.front = toPath(THICKNESS / 2, true, picture);
-  picture.bevel = EXTRUSION.bevel * pixelsPerUnit(layout, viewport, REST);
+  const picture: Picture = { part, back: '', front: '', left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity, bevel: 0 };
+  const draw = (z: number, track: boolean) =>
+    contours(OUTLINES[part])
+      .map((points) => {
+        const parts: string[] = [];
+        projectOutline(points, z, matrix, layout.fov, aspect).forEach((s, i) => {
+          const x = s.x * viewport.width;
+          const y = s.y * viewport.height;
+          parts.push(`${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`);
+          if (track) {
+            picture.left = Math.min(picture.left, x);
+            picture.right = Math.max(picture.right, x);
+            picture.top = Math.min(picture.top, y);
+            picture.bottom = Math.max(picture.bottom, y);
+          }
+        });
+        return `${parts.join(' ')} Z`;
+      })
+      .join(' ');
+  const half = thickness(part) / 2;
+  picture.back = draw(-half, false);
+  picture.front = draw(half, true);
+  picture.bevel = EXTRUSION.bevel[part] * pixelsPerUnit(layout, viewport, REST);
   return picture;
 }
 
 /**
- * The static poster: the monogram at rest, drawn from the same outlines and
- * projected through the same camera as the WebGL scene at the real viewport
- * size. Each letter is its dark back silhouette, then its front silhouette
- * filled with one broad silver gradient, with the bevel band painted as a
- * stroke clipped to the silhouette, so the picture keeps the rounded-edge
- * value hierarchy of the rendered metal.
+ * The static poster: the emblem at rest, drawn from the same cap outlines
+ * and projected through the same camera as the WebGL scene at the real
+ * viewport size. The silhouette of each part is its cap grown by its own
+ * bevel, which a round-joined stroke of twice that bevel paints exactly, so
+ * the rim's hole stays open and the letter tips stay sharp. Each part is its dark back silhouette, then its
+ * front silhouette in the bevel's rolling gradient, then the flat cap in
+ * silver on top, so the picture keeps the sharp caps and rounded edges of
+ * the rendered metal.
  */
 export function MonogramSvg({ viewport, compact, className, testId }: MonogramSvgProps) {
-  const pictures = useMemo(() => LETTERS.map((letter) => pictureFor(letter, compact, viewport)), [compact, viewport]);
+  const pictures = useMemo(() => PARTS.map((part) => pictureFor(part, compact, viewport)), [compact, viewport]);
   return (
     <svg
       className={className}
@@ -86,33 +92,31 @@ export function MonogramSvg({ viewport, compact, className, testId }: MonogramSv
     >
       <defs>
         {pictures.map((picture) => {
-          const id = `${testId}-${picture.letter}`;
+          const id = `${testId}-${picture.part}`;
           return (
             <g key={id}>
-              <clipPath id={`${id}-clip`}>
-                <path d={picture.front} />
-              </clipPath>
-              <linearGradient id={`${id}-face`} gradientUnits="userSpaceOnUse" x1={picture.left} y1={picture.top} x2={picture.right} y2={picture.bottom}>
-                <stop offset="0" stopColor="#dfe2e6" />
-                <stop offset="0.5" stopColor="#b4b8be" />
-                <stop offset="1" stopColor="#7a7f87" />
+              <linearGradient id={`${id}-cap`} gradientUnits="userSpaceOnUse" x1={picture.left} y1={picture.top} x2={picture.right} y2={picture.bottom}>
+                <stop offset="0" stopColor="#d4d7dc" />
+                <stop offset="0.55" stopColor="#aeb2b8" />
+                <stop offset="1" stopColor="#7c8188" />
               </linearGradient>
               <linearGradient id={`${id}-bevel`} gradientUnits="userSpaceOnUse" x1={picture.left} y1={picture.top} x2={picture.right} y2={picture.bottom}>
-                <stop offset="0" stopColor="#f6f7f8" />
-                <stop offset="0.45" stopColor="#8d9299" />
-                <stop offset="1" stopColor="#23262b" />
+                <stop offset="0" stopColor="#f4f5f7" />
+                <stop offset="0.5" stopColor="#80858c" />
+                <stop offset="1" stopColor="#1f2227" />
               </linearGradient>
             </g>
           );
         })}
       </defs>
       {pictures.map((picture) => {
-        const id = `${testId}-${picture.letter}`;
+        const id = `${testId}-${picture.part}`;
+        const grown = picture.bevel * 2;
         return (
-          <g key={id} data-part={picture.letter}>
-            <path d={picture.back} fill="#1f2227" />
-            <path d={picture.front} fill={`url(#${id}-face)`} />
-            <path d={picture.front} fill="none" stroke={`url(#${id}-bevel)`} strokeWidth={picture.bevel * 2} strokeLinejoin="round" clipPath={`url(#${id}-clip)`} />
+          <g key={id} data-part={picture.part}>
+            <path d={picture.back} fill="#1f2227" fillRule="evenodd" stroke="#1f2227" strokeWidth={grown} strokeLinejoin="round" />
+            <path d={picture.front} fill={`url(#${id}-bevel)`} fillRule="evenodd" stroke={`url(#${id}-bevel)`} strokeWidth={grown} strokeLinejoin="round" />
+            <path d={picture.front} fill={`url(#${id}-cap)`} fillRule="evenodd" />
           </g>
         );
       })}

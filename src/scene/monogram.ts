@@ -1,29 +1,39 @@
 /**
- * Pure geometry for the opening artwork: a custom JT monogram. Everything
- * here is deterministic plain math, so the WebGL scene, the SVG poster, and
- * the unit tests share one description.
+ * Pure geometry for the opening artwork: an italic JT emblem fused into an
+ * elongated oval rim, one continuous piece of polished metal like a belt
+ * buckle. Everything here is deterministic plain math, so the WebGL scene,
+ * the SVG poster, and the unit tests share one description.
  *
- * Each letter is one closed outline drawn from a handful of lines and cubic
- * curves in a local frame: x right, y up, the letter two units tall from
- * y = -1 to y = 1. The J is a long upright stem on its right that flows into
- * a broad bottom hook, curling left and rising to a short rounded terminal
- * so the upper left stays open. The T is a gently arched, slightly swept top
- * bar over a tapering central stem with a rounded foot. The outlines are the
- * silhouettes: the extrusion keeps them as the straight wall and rolls a
- * quarter-round bevel inward from them to a flat, narrower cap, so the
- * drawn curves are exactly what the viewer sees in outline.
+ * The emblem lives in one local frame: x right, y up, the oval two units
+ * tall from y = -1 to y = 1 and 1.55 times as wide. It is a single compound
+ * outline: the outer oval, and one inner negative-space contour that follows
+ * the rim's inner edge and detours around the two letters where they grow
+ * out of it. The J leans forward with a long stem, a compact rounded return,
+ * and a short rising left terminal; its lower outer return flows into the
+ * rim near seven o'clock. The T has a taut, gently swept crossbar over a
+ * centred slanted stem with a clean foot; the crossbar's right end flows
+ * into the rim near two o'clock. Each join is a broad tangent cove, and
+ * every terminal is a compact round. Nothing else touches the rim, so the
+ * dark space inside the oval stays one open region and the J counter stays
+ * open.
  *
- * Poses are rigid: the letters never deform. The two sit side by side in one
- * group with a deliberate gap; the scroll handoff turns the group modestly
- * and carries it up and right while the first chapter covers it; the loader
- * starts closer and pitched; the pointer tilts the view by a few degrees.
+ * The drawn outline is the flat cap. The extrusion rolls a small
+ * quarter-round bevel outward from it, so the silhouette is the cap grown
+ * by the bevel radius, and a shallow dome is raised on the whole front cap
+ * from one smooth field, so letters, joins, and rim share one continuous
+ * surface. Concave corners need a radius larger than the bevel.
+ *
+ * Poses are rigid: the emblem moves as one. The scroll handoff turns it
+ * modestly and carries it up and right while the first chapter covers it;
+ * the loader starts closer and pitched; the pointer tilts the view by a few
+ * degrees.
  */
 
 export type Vec2 = [number, number];
 export type Vec3 = [number, number, number];
-export type Letter = 'j' | 't';
+export type Part = 'emblem';
 
-export const LETTERS: readonly Letter[] = ['j', 't'];
+export const PARTS: readonly Part[] = ['emblem'];
 
 const DEG = Math.PI / 180;
 
@@ -52,10 +62,11 @@ export interface CubicSegment {
 
 export type Segment = LineSegment | CubicSegment;
 
-/** A closed outline: the last segment ends exactly at `start`. */
+/** A closed outline: the last segment ends exactly at `start`. Holes are closed outlines wound the opposite way. */
 export interface Outline {
   start: Vec2;
   segments: Segment[];
+  holes?: Outline[];
 }
 
 function unit(x: number, y: number): Vec2 {
@@ -104,12 +115,41 @@ class Pen {
     return this;
   }
 
-  /** A near-circular arc from the current direction to `dir`. */
+  /** A near-circular arc from the current direction to `dir`; turns beyond a right angle are split in two. */
   arc(to: Vec2, dir: Vec2): this {
-    const chord = Math.hypot(to[0] - this.at[0], to[1] - this.at[1]);
     const cos = Math.max(-1, Math.min(1, this.dir[0] * dir[0] + this.dir[1] * dir[1]));
-    const handle = arcHandle(chord, Math.acos(cos));
+    const turn = Math.acos(cos);
+    if (turn > Math.PI / 2 + 1e-6) {
+      // Midpoint of the circular arc through both tangents: the chord's midpoint pushed out by the sagitta.
+      const mx = (this.at[0] + to[0]) / 2, my = (this.at[1] + to[1]) / 2;
+      const chord = Math.hypot(to[0] - this.at[0], to[1] - this.at[1]);
+      const radius = chord / (2 * Math.sin(turn / 2));
+      const sagitta = radius * (1 - Math.cos(turn / 2));
+      const mid = unit(this.dir[0] + dir[0], this.dir[1] + dir[1]);
+      // The arc bulges to the side the turn comes from: left of travel for a counterclockwise turn.
+      const cross = this.dir[0] * dir[1] - this.dir[1] * dir[0];
+      const side = cross > 0 ? -1 : 1;
+      const apex: Vec2 = [mx - side * mid[1] * -sagitta * -1, my + side * mid[0] * -sagitta * -1];
+      void apex;
+      const n: Vec2 = cross > 0 ? [-mid[1], mid[0]] : [mid[1], -mid[0]];
+      const peak: Vec2 = [mx - n[0] * sagitta, my - n[1] * sagitta];
+      this.arc(peak, mid);
+      return this.arc(to, dir);
+    }
+    const chord = Math.hypot(to[0] - this.at[0], to[1] - this.at[1]);
+    const handle = arcHandle(chord, turn);
     return this.curve(to, dir, handle, handle);
+  }
+
+  /** Samples an ellipse arc as short lines, leaving the pen heading along the ellipse. */
+  ellipse(a: number, b: number, from: number, to: number, step = 1.5): this {
+    const count = Math.max(2, Math.ceil(Math.abs(to - from) / step));
+    for (let i = 1; i <= count; i++) {
+      const phi = (from + ((to - from) * i) / count) * DEG;
+      this.line([a * Math.cos(phi), b * Math.sin(phi)]);
+    }
+    this.dir = ellipseTangent(a, b, to);
+    return this;
   }
 
   close(): Outline {
@@ -117,132 +157,198 @@ class Pen {
   }
 }
 
-/**
- * The J. Stem width 0.42 with a flat top and rounded corners; the hook is
- * fullest through its bottom (0.44) and thins to a 0.36 terminal. The
- * outside of the hook bulges a little more than a circle and the inside is
- * drawn tauter, so the stroke reads as drawn rather than mechanically offset.
- * The stem's right edge is at x = 0 and the terminal reaches x = -1.18.
- */
-function drawJ(): Outline {
-  const stem = 0.42;
-  const corner = 0.18;
-  const pen = new Pen([-stem + corner, 1], RIGHT);
-  pen
-    .line([-corner, 1])
-    .arc([0, 1 - corner], DOWN)
-    .line([0, -0.2])
-    // Outside of the hook: down and around to the terminal, fuller than a circle.
-    .curve([-0.58, -1], LEFT, 0.8 * 0.6, 0.58 * 0.6)
-    .curve([-1.18, -0.56], UP, 0.6 * 0.56, 0.44 * 0.56)
-    .line([-1.18, -0.4])
-    // Rounded terminal.
-    .arc([-1, -0.22], RIGHT)
-    .arc([-0.82, -0.4], DOWN)
-    .line([-0.82, -0.44])
-    // Inside of the hook: tight at the terminal, tall toward the stem.
-    .curve([-0.66, -0.56], RIGHT, 0.12 * 0.55, 0.16 * 0.55)
-    .curve([-stem, -0.08], UP, 0.24 * 0.55, 0.48 * 0.55)
-    .line([-stem, 1 - corner])
-    .arc([-stem + corner, 1], RIGHT);
-  return pen.close();
+function ellipsePoint(a: number, b: number, degrees: number): Vec2 {
+  return [a * Math.cos(degrees * DEG), b * Math.sin(degrees * DEG)];
 }
 
-/** Where the line through `p` along `d` meets the line through `q` along `e`. */
-function intersect(p: Vec2, d: Vec2, q: Vec2, e: Vec2): Vec2 {
-  const denom = d[0] * e[1] - d[1] * e[0];
-  const s = ((q[0] - p[0]) * e[1] - (q[1] - p[1]) * e[0]) / denom;
-  return [p[0] + d[0] * s, p[1] + d[1] * s];
-}
-
-/** Distance from a corner to the points where a circular fillet of radius `r` touches its two edges. */
-function filletReach(a: Vec2, b: Vec2, r: number): number {
-  const cos = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1]));
-  return r * Math.tan(Math.acos(cos) / 2);
+/** Counterclockwise unit tangent of the ellipse at the given angle. */
+function ellipseTangent(a: number, b: number, degrees: number): Vec2 {
+  return unit(-a * Math.sin(degrees * DEG), b * Math.cos(degrees * DEG));
 }
 
 /** Rounds the corner where the pen's current line (direction `a`) meets the next edge (direction `b`). */
 function fillet(pen: Pen, corner: Vec2, a: Vec2, b: Vec2, r: number): Pen {
-  const reach = filletReach(a, b, r);
+  const cos = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1]));
+  const reach = r * Math.tan(Math.acos(cos) / 2);
   pen.line([corner[0] - a[0] * reach, corner[1] - a[1] * reach]);
   return pen.arc([corner[0] + b[0] * reach, corner[1] + b[1] * reach], b);
 }
 
-/**
- * The T. The bar is 1.24 wide and arches gently, peaking right of centre; it
- * is about 0.38 thick at its left end and 0.33 at its lifted right end, so
- * the sweep reads as a brush stroke while the stem stays plainly beneath it.
- * The stem sits just right of the bar's centre, tapers from 0.42 to 0.36,
- * and ends in a round foot; the bar joins it through concave fillets. Every
- * corner is a circular fillet between the bar's edge lines, so the bevel
- * meets the same radius all the way round. The bar's left end is at x = 0.
- */
-function drawT(): Outline {
-  const corner = 0.175;
-  const joint = 0.13;
-  const stemCentre = 0.64;
-  const foot = 0.18;
-  const topLeft = unit(1, 0.1);
-  const topRight = unit(1, -0.08);
-  const underRight = unit(-1, -0.125);
-  const underLeft = unit(-1, -0.16);
-  const stemRight = unit(-0.03, -1.315);
-  const stemLeft = unit(-0.03, 1.315);
-  // Virtual corners of the bar ends, and the stem's edge lines.
-  const leftTop: Vec2 = [0, 0.93];
-  const leftBottom: Vec2 = [0, 0.552];
-  const rightTop: Vec2 = [1.24, 0.972];
-  const rightBottom: Vec2 = [1.24, 0.645];
-  const rightEdgeFoot: Vec2 = [stemCentre + foot, -0.82];
-  const leftEdgeFoot: Vec2 = [stemCentre - foot, -0.82];
-  const rightJoint = intersect(rightBottom, underRight, rightEdgeFoot, stemRight);
-  const leftJoint = intersect(leftEdgeFoot, stemLeft, leftBottom, underLeft);
+/** Bevel radius rolled outward from the drawn (cap) outline; the silhouette is the cap grown by it. */
+export const BEVEL = 0.02;
 
-  const startReach = filletReach(UP, topLeft, corner);
-  const start: Vec2 = [leftTop[0] + topLeft[0] * startReach, leftTop[1] + topLeft[1] * startReach];
-  const topEndReach = filletReach(topRight, DOWN, corner);
-  const pen = new Pen(start, topLeft);
-  // The arched top edge, then down the right end.
-  pen.curve([rightTop[0] - topRight[0] * topEndReach, rightTop[1] - topRight[1] * topEndReach], topRight, 0.46, 0.42);
-  pen.arc([rightTop[0], rightTop[1] - topEndReach], DOWN);
-  fillet(pen, rightBottom, DOWN, underRight, corner);
-  // Under the bar into the stem, around the foot, and back up.
-  fillet(pen, rightJoint, underRight, stemRight, joint);
-  pen.line(rightEdgeFoot);
-  pen.arc([stemCentre, -1], LEFT);
-  pen.arc(leftEdgeFoot, stemLeft);
-  fillet(pen, leftJoint, stemLeft, underLeft, joint);
-  fillet(pen, leftBottom, underLeft, UP, corner);
-  pen.line([leftTop[0], leftTop[1] - startReach]);
-  pen.arc(start, topLeft);
+/** Silhouette oval: 1.55:1, with a band of 0.11 (about 5% of the height); the cap sits one bevel inside the silhouette. */
+export const RIM = { a: 1.55, b: 1.0, band: 0.11 };
+
+/** The cap's outer oval and inner edge, each one bevel inside its silhouette. */
+const OUTER = { a: RIM.a - BEVEL, b: RIM.b - BEVEL };
+const INNER = { a: RIM.a - RIM.band + BEVEL, b: RIM.b - RIM.band + BEVEL };
+
+/** Forward lean of the letters: x shifts by this much per unit of height. */
+export const SLANT = 0.23;
+
+const sh = (x: number, y: number): Vec2 => [x + SLANT * y, y];
+const shd = (x: number, y: number): Vec2 => unit(x + SLANT * y, y);
+const SLANT_UP = shd(0, 1);
+const SLANT_DOWN = shd(0, -1);
+
+/** Where the line through `p` along `d` meets the line through `q` along `e`. */
+function intersect(p: Vec2, d: Vec2, q: Vec2, e: Vec2): Vec2 {
+  const denom = d[0] * e[1] - d[1] * e[0];
+  const t = ((q[0] - p[0]) * e[1] - (q[1] - p[1]) * e[0]) / denom;
+  return [p[0] + d[0] * t, p[1] + d[1] * t];
+}
+
+interface Flank {
+  /** Angle on the inner edge where the cove meets the ellipse. */
+  phi: number;
+  /** Where the cove's arc touches the letter's edge. */
+  edge: Vec2;
+}
+
+/**
+ * A join flank: the circular cove of radius `r` tangent to the rim's inner
+ * edge and to a straight letter edge. Solved for the ellipse angle at which
+ * the cove meets the ellipse exactly, so the sampled ellipse and the arc
+ * share that point and direction. `entering` is the flank where the contour
+ * leaves the ellipse for the letter; otherwise it returns to the ellipse.
+ */
+function flank(a: number, b: number, edgePoint: Vec2, edgeDir: Vec2, r: number, lo: number, hi: number, entering: boolean): Flank {
+  const gap = (phi: number): { f: number; edge: Vec2 } => {
+    const e = ellipsePoint(a, b, phi);
+    const t = ellipseTangent(a, b, phi);
+    const corner = intersect(e, t, edgePoint, edgeDir);
+    const from = entering ? t : edgeDir;
+    const to = entering ? edgeDir : t;
+    const cos = Math.max(-1, Math.min(1, from[0] * to[0] + from[1] * to[1]));
+    const reach = r * Math.tan(Math.acos(cos) / 2);
+    const along = entering ? (corner[0] - e[0]) * t[0] + (corner[1] - e[1]) * t[1] : (e[0] - corner[0]) * t[0] + (e[1] - corner[1]) * t[1];
+    const edge: Vec2 = entering
+      ? [corner[0] + edgeDir[0] * reach, corner[1] + edgeDir[1] * reach]
+      : [corner[0] - edgeDir[0] * reach, corner[1] - edgeDir[1] * reach];
+    return { f: along - reach, edge };
+  };
+  let low = lo, high = hi;
+  let fLow = gap(low).f;
+  for (let i = 0; i < 60; i++) {
+    const mid = (low + high) / 2;
+    const fMid = gap(mid).f;
+    if ((fMid < 0) === (fLow < 0)) {
+      low = mid;
+      fLow = fMid;
+    } else {
+      high = mid;
+    }
+  }
+  const phi = (low + high) / 2;
+  return { phi, edge: gap(phi).edge };
+}
+
+/**
+ * The outer oval: clockwise, with a slightly flattened crown and lower arc.
+ */
+function drawOuter(): Outline {
+  const { a, b } = OUTER;
+  const crown = 0.62, side = 0.54;
+  const pen = new Pen([a, 0], DOWN);
+  pen.curve([0, -b], LEFT, b * side, a * crown);
+  pen.curve([-a, 0], UP, a * crown, b * side);
+  pen.curve([0, b], RIGHT, b * side, a * crown);
+  pen.curve([a, 0], DOWN, a * crown, b * side);
   return pen.close();
 }
 
-export const OUTLINES: Readonly<Record<Letter, Outline>> = { j: drawJ(), t: drawT() };
+/**
+ * The negative space: one counterclockwise contour that runs along the rim's
+ * inner edge and, at each join, leaves it through a cove to trace the letter
+ * clockwise and returns through another cove. Starting on the right side
+ * below the T.
+ */
+function drawNegative(): Outline {
+  const { a, b } = INNER;
+  // T geometry, upright before the slant: bar top and bottom, stem edges, foot, bar's left end.
+  const barTop = 0.68, barBottom = 0.5, stemL = 0.46, stemR = 0.64, foot = -0.6, barEnd = 0.08, termR = 0.09;
+  // J geometry: stem edges, top, terminal's outer edge and width, terminal top, return bottom.
+  const stemJL = -0.6, stemJR = -0.42, top = 0.7, termL = -1.0, termWidth = 0.16, termTop = -0.28;
 
-/** Letter height in local units; the outlines span y = -1 to y = 1. */
-export const LETTER_HEIGHT = 2;
+  // The four coves where the letters grow out of the rim.
+  const tLower = flank(a, b, sh(0.9, barBottom), LEFT, 0.12, 5, 50, true);
+  const tUpper = flank(a, b, sh(0.6, barTop + 0.01), RIGHT, 0.05, 40, 80, false);
+  const jUpper = flank(a, b, sh(termL, -0.5), SLANT_UP, 0.07, 190, 235, true);
+  // The J's return sweeps down and left and meets the rim at a shallow angle, so its cove is a soft merge.
+  const jEnd: Vec2 = [-0.86, -0.62];
+  const jEndDir = unit(-0.95, -0.32);
+  const jLower = flank(a, b, jEnd, jEndDir, 0.05, 215, 262, false);
 
-/** Clear space between the nearest points of the two silhouettes: 7% of the letter height. */
-export const GAP = 0.07 * LETTER_HEIGHT;
+  const pen = new Pen(ellipsePoint(a, b, tLower.phi), ellipseTangent(a, b, tLower.phi));
+
+  // T: cove into the bar's underside, down the stem, around the foot, up, around the bar's left end, and out along its top.
+  pen.arc(tLower.edge, LEFT);
+  fillet(pen, sh(stemR, barBottom), LEFT, SLANT_DOWN, 0.07);
+  fillet(pen, sh(stemR, foot), SLANT_DOWN, LEFT, 0.05);
+  fillet(pen, sh(stemL, foot), LEFT, SLANT_UP, 0.05);
+  fillet(pen, sh(stemL, barBottom), SLANT_UP, LEFT, 0.07);
+  pen.line(sh(barEnd + termR, barBottom));
+  pen.arc(sh(barEnd, (barTop + barBottom) / 2), SLANT_UP);
+  pen.arc(sh(barEnd + termR, barTop), RIGHT);
+  pen.curve(sh(0.42, barTop + 0.01), RIGHT, 0.16, 0.16);
+  pen.line(tUpper.edge);
+  pen.arc(ellipsePoint(a, b, tUpper.phi), ellipseTangent(a, b, tUpper.phi));
+
+  // Over the top and down the left side to the J.
+  pen.ellipse(a, b, tUpper.phi, jUpper.phi);
+
+  // J: cove into the terminal's outer edge, over its round, down into the counter, up the stem, over its top, down, and round into the rim.
+  pen.arc(jUpper.edge, SLANT_UP);
+  pen.line(sh(termL, termTop - termWidth / 2));
+  pen.arc(sh(termL + termWidth / 2, termTop), RIGHT);
+  pen.arc(sh(termL + termWidth, termTop - termWidth / 2), SLANT_DOWN);
+  pen.curve([-0.8, -0.5], RIGHT, 0.14, 0.14);
+  pen.curve(sh(stemJL, -0.2), SLANT_UP, 0.14, 0.18);
+  fillet(pen, sh(stemJL, top), SLANT_UP, RIGHT, 0.05);
+  fillet(pen, sh(stemJR, top), RIGHT, SLANT_DOWN, 0.05);
+  pen.line(sh(stemJR, -0.2));
+  pen.curve(jEnd, jEndDir, 0.45, 0.3);
+  pen.line(jLower.edge);
+  pen.arc(ellipsePoint(a, b, jLower.phi), ellipseTangent(a, b, jLower.phi));
+
+  // Along the bottom and up the right side back to the start.
+  pen.ellipse(a, b, jLower.phi, tLower.phi + 360);
+  return pen.close();
+}
+
+function drawEmblem(): Outline {
+  return { ...drawOuter(), holes: [drawNegative()] };
+}
+
+export const OUTLINES: Readonly<Record<Part, Outline>> = { emblem: drawEmblem() };
+
+/** Silhouette size of the emblem: the outer oval including its bevel. */
+export const EMBLEM = { width: 2 * RIM.a, height: 2 * RIM.b };
 
 /**
- * Extrusion: the straight wall depth, the bevel radius (its size and
- * thickness are equal, so the profile is a quarter circle rolled inward from
- * the silhouette to the cap), and the tessellation of the bevel and of each
- * cubic. Total thickness is depth + 2 * bevel.
+ * Extrusion: the bevel rolled outward from the cap, the straight wall depth,
+ * and the shallow dome raised on the front cap from one smooth field, broad
+ * over the letter bodies and modest over the band. Total thickness is depth
+ * plus two bevels plus the dome.
  */
 export const EXTRUSION = {
-  depth: 0.12,
-  bevel: 0.145,
-  bevelSegments: 10,
+  bevel: { emblem: BEVEL } as Readonly<Record<Part, number>>,
+  bevelSegments: 6,
   curveSegments: 24,
+  depth: { emblem: 0.1 } as Readonly<Record<Part, number>>,
+  lift: { emblem: 0 } as Readonly<Record<Part, number>>,
+  dome: { emblem: 0.05 } as Readonly<Record<Part, number>>,
+  /** Longest edge allowed in the domed cap's triangulation, and the spacing of the field's grid. */
+  domeEdge: 0.03,
+  domeGrid: 0.012,
 } as const;
 
-export const THICKNESS = EXTRUSION.depth + 2 * EXTRUSION.bevel;
+export function thickness(part: Part): number {
+  return EXTRUSION.depth[part] + 2 * EXTRUSION.bevel[part];
+}
 
 // --- sampling and measurement -------------------------------------------------
-
 function cubicPoint(p0: Vec2, c1: Vec2, c2: Vec2, p1: Vec2, t: number, out: Vec2): Vec2 {
   const u = 1 - t;
   const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
@@ -324,12 +430,12 @@ export function isSimple(points: readonly Vec2[]): boolean {
 }
 
 /**
- * The smallest radius of curvature at a convex sample of the closed
- * polyline, from the circle through each point and its neighbours. The
- * bevel rolls inward from the silhouette, so every convex radius must exceed
- * the bevel radius or the cap would fold over itself.
+ * The smallest radius of curvature at the convex (or, with `concave`, the
+ * concave) samples of the closed polyline, from the circle through each
+ * point and its neighbours. The bevel rolls outward from the cap, so every
+ * concave radius must exceed the bevel radius or the bevel would fold.
  */
-export function minConvexRadius(points: readonly Vec2[]): number {
+export function minRadius(points: readonly Vec2[], concave = false): number {
   const n = points.length;
   const ccw = polygonArea(points) > 0;
   let min = Infinity;
@@ -338,7 +444,7 @@ export function minConvexRadius(points: readonly Vec2[]): number {
     const ax = q[0] - p[0], ay = q[1] - p[1], bx = r[0] - q[0], by = r[1] - q[1];
     const cross = ax * by - ay * bx;
     const convex = ccw ? cross > 0 : cross < 0;
-    if (!convex || Math.abs(cross) < 1e-12) continue;
+    if (convex === concave || Math.abs(cross) < 1e-12) continue;
     const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by), lc = Math.hypot(r[0] - p[0], r[1] - p[1]);
     const radius = (la * lb * lc) / (2 * Math.abs(cross));
     if (radius < min) min = radius;
@@ -347,9 +453,8 @@ export function minConvexRadius(points: readonly Vec2[]): number {
 }
 
 /**
- * The narrowest stroke: for every sample, the distance along the inward
- * normal to the first edge the ray meets again. Two bevels must fit across
- * every stroke with a flat cap left between them.
+ * The narrowest stroke of a cap outline: for every sample, the distance
+ * along the inward normal to the first edge the ray meets again.
  */
 export function minStrokeWidth(points: readonly Vec2[]): number {
   const n = points.length;
@@ -376,48 +481,35 @@ export function minStrokeWidth(points: readonly Vec2[]): number {
   return min;
 }
 
-// --- placement ----------------------------------------------------------------
-
-export interface Placement {
-  /** Translation that moves the drawn outline into the pair's frame, centred on its own bounds. */
-  offset: Vec2;
-  /** Where the letter's centre sits in the pair's frame. */
-  centre: Vec2;
-  width: number;
-  height: number;
+/** Nearest distance from any sample of `a` to the edges of the closed polyline `b`. */
+export function clearance(a: readonly Vec2[], b: readonly Vec2[]): number {
+  let min = Infinity;
+  for (const [ax, ay] of a) {
+    for (let i = 0; i < b.length; i++) {
+      const [px, py] = b[i];
+      const [qx, qy] = b[(i + 1) % b.length];
+      const ex = qx - px, ey = qy - py;
+      const t = Math.max(0, Math.min(1, ((ax - px) * ex + (ay - py) * ey) / (ex * ex + ey * ey || 1)));
+      min = Math.min(min, Math.hypot(ax - (px + ex * t), ay - (py + ey * t)));
+    }
+  }
+  return min;
 }
 
-function placeLetters(): Record<Letter, Placement> {
-  const j = bounds2(flatten(OUTLINES.j));
-  const t = bounds2(flatten(OUTLINES.t));
-  // The J's nearest point to the T is its stem's right edge; the T's is its bar's left end.
-  const jShift = -GAP / 2 - j.maxX;
-  const tShift = GAP / 2 - t.minX;
-  const left = j.minX + jShift;
-  const right = t.maxX + tShift;
-  const recentre = -(left + right) / 2;
-  const place = (b: ReturnType<typeof bounds2>, shift: number): Placement => {
-    const cx = (b.minX + b.maxX) / 2 + shift + recentre;
-    const cy = (b.minY + b.maxY) / 2;
-    return { offset: [-(b.minX + b.maxX) / 2, -cy], centre: [cx, cy], width: b.maxX - b.minX, height: b.maxY - b.minY };
-  };
-  return { j: place(j, jShift), t: place(t, tShift) };
+/** Even-odd point-in-polygon. */
+export function contains(points: readonly Vec2[], x: number, y: number): boolean {
+  let hit = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const [xi, yi] = points[i];
+    const [xj, yj] = points[j];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
 }
 
-export const PLACEMENT: Readonly<Record<Letter, Placement>> = placeLetters();
-
-/** Bounds of the whole monogram in the pair's frame. */
-export const MONOGRAM = (() => {
-  const j = PLACEMENT.j, t = PLACEMENT.t;
-  const left = j.centre[0] - j.width / 2;
-  const right = t.centre[0] + t.width / 2;
-  return { left, right, width: right - left, height: LETTER_HEIGHT };
-})();
-
-/** The letter's outline centred on its own bounds, as the mesh and poster use it. */
-export function centredOutline(letter: Letter, segments = EXTRUSION.curveSegments): Vec2[] {
-  const [dx, dy] = PLACEMENT[letter].offset;
-  return flatten(OUTLINES[letter], segments).map(([x, y]) => [x + dx, y + dy] as Vec2);
+/** The outline's contours as closed polylines: the outer boundary first, then any holes. */
+export function contours(outline: Outline, segments = EXTRUSION.curveSegments): Vec2[][] {
+  return [flatten(outline, segments), ...(outline.holes ?? []).map((hole) => flatten(hole, segments))];
 }
 
 // --- layout and poses ---------------------------------------------------------
@@ -444,8 +536,6 @@ export interface Layout {
   foldPitch: number;
   foldYaw: number;
   foldTravel: Vec2;
-  /** At fold 1: how many degrees the J turns beyond the group and the T short of it, so the pair keeps its depth. */
-  letterTurn: number;
   /** At reveal 0: how much closer the monogram starts and the extra pitch in degrees. */
   revealApproach: number;
   revealPitch: number;
@@ -454,14 +544,13 @@ export interface Layout {
 export const DESKTOP: Layout = {
   fov: 32,
   distance: 8,
-  centre: [0.72, 0.515],
+  centre: [0.73, 0.515],
   shortShift: 0,
-  scale: 1.2,
-  rest: [4, 10, 0],
-  foldPitch: -6,
-  foldYaw: 24,
+  scale: 1,
+  rest: [3, 8, 0],
+  foldPitch: -5,
+  foldYaw: 22,
   foldTravel: [1.1, 1.3],
-  letterTurn: 4,
   revealApproach: 1.5,
   revealPitch: 6,
 };
@@ -471,12 +560,11 @@ export const COMPACT: Layout = {
   distance: 8,
   centre: [0.5, 0.675],
   shortShift: 0.0004,
-  scale: 0.8,
-  rest: [3, 14, 0],
-  foldPitch: -5,
-  foldYaw: 20,
+  scale: 0.72,
+  rest: [2, 7, 0],
+  foldPitch: -4,
+  foldYaw: 18,
   foldTravel: [0.9, 1.1],
-  letterTurn: 3,
   revealApproach: 1.2,
   revealPitch: 5,
 };
@@ -517,7 +605,7 @@ function freshPose(): Pose {
 const scratchCentre: Vec2 = [0, 0];
 
 /**
- * Pose of the whole monogram in camera space: the camera sits at the origin
+ * Pose of the whole emblem in camera space: the camera sits at the origin
  * looking down -z, so a point at depth `distance` projects to the layout's
  * screen centre.
  */
@@ -540,19 +628,13 @@ export function groupPose(layout: Layout, viewport: Viewport, params: PoseParams
   return out;
 }
 
-/**
- * Pose of one letter relative to the group: its place in the pair, plus a
- * few degrees of its own turn during the fold so the two solids keep a
- * visible depth relationship while they travel together.
- */
-export function letterPose(layout: Layout, letter: Letter, params: PoseParams, out: Pose = freshPose()): Pose {
-  const fold = easeInOutCubic(params.fold);
-  const centre = PLACEMENT[letter].centre;
-  out.position[0] = centre[0];
-  out.position[1] = centre[1];
-  out.position[2] = 0;
+/** Pose of one part relative to the emblem: rim and letters are rigid, the letters raised in depth. */
+export function partPose(part: Part, out: Pose = freshPose()): Pose {
+  out.position[0] = 0;
+  out.position[1] = 0;
+  out.position[2] = EXTRUSION.lift[part];
   out.rotation[0] = 0;
-  out.rotation[1] = (letter === 'j' ? layout.letterTurn : -layout.letterTurn) * fold * DEG;
+  out.rotation[1] = 0;
   out.rotation[2] = 0;
   out.scale = 1;
   return out;
@@ -626,14 +708,14 @@ export function project(point: Vec3, fov: number, aspect: number, out: ScreenPoi
   return out;
 }
 
-/** World matrix of a letter for the given layout, viewport, and parameters. */
-export function letterMatrix(layout: Layout, viewport: Viewport, letter: Letter, params: PoseParams, out: Mat4 = new Float64Array(16)): Mat4 {
+/** World matrix of a part for the given layout, viewport, and parameters. */
+export function partMatrix(layout: Layout, viewport: Viewport, part: Part, params: PoseParams, out: Mat4 = new Float64Array(16)): Mat4 {
   const group = poseMatrix(groupPose(layout, viewport, params));
-  const local = poseMatrix(letterPose(layout, letter, params));
+  const local = poseMatrix(partPose(part));
   return multiplyMatrices(group, local, out);
 }
 
-/** The letter's centred outline at local depth `z`, projected to screen fractions. */
+/** A contour at local depth `z`, projected to screen fractions. */
 export function projectOutline(points: readonly Vec2[], z: number, matrix: Mat4, fov: number, aspect: number): ScreenPoint[] {
   const p: Vec3 = [0, 0, z];
   const q: Vec3 = [0, 0, 0];
@@ -645,13 +727,24 @@ export function projectOutline(points: readonly Vec2[], z: number, matrix: Mat4,
   });
 }
 
-/** Projected screen bounds (0..1) of a letter's full solid: both cap planes of its silhouette. */
-export function projectedBounds(layout: Layout, viewport: Viewport, letter: Letter, params: PoseParams): Bounds {
-  const matrix = letterMatrix(layout, viewport, letter, params);
+/** Pixels per local unit at the front of the emblem, for screen-space widths in the poster. */
+export function pixelsPerUnit(layout: Layout, viewport: Viewport, params: PoseParams): number {
+  const pose = groupPose(layout, viewport, params);
+  const depth = -pose.position[2] - thickness('emblem') / 2 - EXTRUSION.lift.emblem;
+  return ((viewport.height / 2) * pose.scale) / (Math.tan((layout.fov * DEG) / 2) * depth);
+}
+
+/**
+ * Projected screen bounds (0..1) of a part's full solid: its cap outline at
+ * both cap planes, grown by the bevel that the extrusion rolls outward.
+ */
+export function projectedBounds(layout: Layout, viewport: Viewport, part: Part, params: PoseParams): Bounds {
+  const matrix = partMatrix(layout, viewport, part, params);
   const aspect = viewport.width / viewport.height;
-  const outline = centredOutline(letter);
+  const outline = flatten(OUTLINES[part]);
   const bounds: Bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
-  for (const z of [THICKNESS / 2, -THICKNESS / 2]) {
+  const half = thickness(part) / 2;
+  for (const z of [half, -half]) {
     for (const s of projectOutline(outline, z, matrix, layout.fov, aspect)) {
       bounds.left = Math.min(bounds.left, s.x);
       bounds.right = Math.max(bounds.right, s.x);
@@ -659,12 +752,10 @@ export function projectedBounds(layout: Layout, viewport: Viewport, letter: Lett
       bounds.bottom = Math.max(bounds.bottom, s.y);
     }
   }
+  const grow = EXTRUSION.bevel[part] * pixelsPerUnit(layout, viewport, params);
+  bounds.left -= grow / viewport.width;
+  bounds.right += grow / viewport.width;
+  bounds.top -= grow / viewport.height;
+  bounds.bottom += grow / viewport.height;
   return bounds;
-}
-
-/** Pixels per local unit at the front of the monogram, for screen-space line widths in the poster. */
-export function pixelsPerUnit(layout: Layout, viewport: Viewport, params: PoseParams): number {
-  const pose = groupPose(layout, viewport, params);
-  const depth = -pose.position[2] - THICKNESS / 2;
-  return ((viewport.height / 2) * pose.scale) / (Math.tan((layout.fov * DEG) / 2) * depth);
 }

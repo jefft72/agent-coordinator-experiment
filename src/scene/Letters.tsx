@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { Group, Mesh } from 'three';
-import { LETTERS, groupPose, layoutFor, letterPose, type Letter, type Pose, type PoseParams } from './monogram';
-import { createLetterGeometry, createLetterMaterial } from './monogramMesh';
+import { PARTS, groupPose, layoutFor, partPose, type Part, type Pose, type PoseParams } from './monogram';
+import { createEmblemMaterial, createPartGeometry } from './monogramMesh';
 import { motion } from './motion';
 
 interface FrameState {
   group: Pose;
-  letters: Record<Letter, Pose>;
+  parts: Record<Part, Pose>;
   params: PoseParams;
   pointer: { x: number; y: number };
   fold: number;
@@ -38,9 +38,9 @@ function applyPose(object: Group | Mesh, pose: Pose): void {
 }
 
 /**
- * The two letters. Every frame reads the motion store, eases the scroll
- * fold, the loader reveal, and the pointer toward their targets, and writes
- * rigid poses to the group and each letter. Rendering is on demand: a frame
+ * The emblem: one united solid of rim and letters. Every frame reads the
+ * motion store, eases the scroll fold, the loader reveal, and the pointer
+ * toward their targets, and writes rigid poses to the group and the part. Rendering is on demand: a frame
  * is requested whenever the store changes or an eased value is still moving,
  * and nothing is requested once everything has settled, the opening is
  * covered, or the document is hidden. Under reduced motion the poses are
@@ -52,22 +52,20 @@ export function Letters() {
   const compact = size.width < 768;
   const layout = useMemo(() => layoutFor(compact), [compact]);
 
-  const geometries = useMemo(() => ({ j: createLetterGeometry('j'), t: createLetterGeometry('t') }), []);
-  const material = useMemo(() => createLetterMaterial(), []);
+  const geometries = useMemo(() => ({ emblem: createPartGeometry('emblem') }), []);
+  const material = useMemo(() => createEmblemMaterial(), []);
   useEffect(() => () => {
-    geometries.j.dispose();
-    geometries.t.dispose();
+    for (const part of PARTS) geometries[part].dispose();
   }, [geometries]);
   useEffect(() => () => material.dispose(), [material]);
 
   const groupRef = useRef<Group>(null);
-  const jRef = useRef<Mesh>(null);
-  const tRef = useRef<Mesh>(null);
+  const emblemRef = useRef<Mesh>(null);
   const stateRef = useRef<FrameState | null>(null);
   useEffect(() => {
     stateRef.current = {
       group: freshPose(),
-      letters: { j: freshPose(), t: freshPose() },
+      parts: { emblem: freshPose() },
       params: { reveal: 1, fold: 0, pointerX: 0, pointerY: 0 },
       pointer: { x: 0, y: 0 },
       fold: motion.fold,
@@ -103,10 +101,9 @@ export function Letters() {
   useFrame((_, delta) => {
     const state = stateRef.current;
     const group = groupRef.current;
-    const j = jRef.current;
-    const t = tRef.current;
-    if (!state || !group || !j || !t || !motion.active) return;
-    const meshes = { j, t };
+    const emblem = emblemRef.current;
+    if (!state || !group || !emblem || !motion.active) return;
+    const meshes = { emblem };
     const dt = Math.min(delta, 1 / 30);
     const reduced = motion.reducedMotion;
     const pointerX = !reduced && motion.pointer.active ? motion.pointer.x : 0;
@@ -138,15 +135,14 @@ export function Letters() {
     params.pointerX = state.pointer.x;
     params.pointerY = state.pointer.y;
     applyPose(group, groupPose(layout, size, params, state.group));
-    for (const letter of LETTERS) {
-      applyPose(meshes[letter], letterPose(layout, letter, params, state.letters[letter]));
+    for (const part of PARTS) {
+      applyPose(meshes[part], partPose(part, state.parts[part]));
     }
   });
 
   return (
     <group ref={groupRef}>
-      <mesh ref={jRef} geometry={geometries.j} material={material} frustumCulled={false} />
-      <mesh ref={tRef} geometry={geometries.t} material={material} frustumCulled={false} />
+      <mesh ref={emblemRef} geometry={geometries.emblem} material={material} frustumCulled={false} />
     </group>
   );
 }

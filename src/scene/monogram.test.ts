@@ -1,150 +1,162 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BEVEL,
   COMPACT,
   DESKTOP,
   EXTRUSION,
-  GAP,
-  LETTERS,
-  LETTER_HEIGHT,
-  MONOGRAM,
   OUTLINES,
-  PLACEMENT,
-  THICKNESS,
+  PARTS,
+  RIM,
+  SLANT,
   bounds2,
-  centredOutline,
+  contains,
+  contours,
   flatten,
   groupPose,
   isSimple,
-  letterPose,
-  minConvexRadius,
-  minStrokeWidth,
+  minRadius,
+  partPose,
   polygonArea,
   projectedBounds,
-  type Bounds,
-  type Letter,
+  thickness,
   type Vec2,
 } from './monogram';
-import { createLetterGeometry } from './monogramMesh';
+import { createPartGeometry, lastBuild } from './monogramMesh';
 
 const DESKTOP_VIEW = { width: 1440, height: 900 };
 const PHONE_VIEW = { width: 390, height: 844 };
 const NARROW_VIEW = { width: 320, height: 700 };
 const REST = { reveal: 1, fold: 0 };
 
-function union(a: Bounds, b: Bounds): Bounds {
-  return { left: Math.min(a.left, b.left), top: Math.min(a.top, b.top), right: Math.max(a.right, b.right), bottom: Math.max(a.bottom, b.bottom) };
+const [outer, negative] = contours(OUTLINES.emblem);
+
+/** True where the cap has metal: inside the oval and outside the negative space. */
+function metal(x: number, y: number): boolean {
+  return contains(outer, x, y) && !contains(negative, x, y);
 }
 
-function monogramBounds(viewport: { width: number; height: number }, compact: boolean, params = REST): Bounds {
-  const layout = compact ? COMPACT : DESKTOP;
-  return union(projectedBounds(layout, viewport, 'j', params), projectedBounds(layout, viewport, 't', params));
+/** Fraction of metal along a horizontal line between two x values. */
+function metalAlong(y: number, x0: number, x1: number, samples = 200): number {
+  let hits = 0;
+  for (let i = 0; i <= samples; i++) if (metal(x0 + ((x1 - x0) * i) / samples, y)) hits++;
+  return hits / (samples + 1);
 }
 
-/** Even-odd point-in-polygon. */
-function inside(points: readonly Vec2[], x: number, y: number): boolean {
-  let hit = false;
-  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-    const [xi, yi] = points[i];
-    const [xj, yj] = points[j];
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
-  }
-  return hit;
-}
-
-function nearestDistance(a: readonly Vec2[], b: readonly Vec2[]): number {
-  let min = Infinity;
-  for (const [ax, ay] of a) {
-    for (let i = 0; i < b.length; i++) {
-      const [px, py] = b[i];
-      const [qx, qy] = b[(i + 1) % b.length];
-      const ex = qx - px, ey = qy - py;
-      const t = Math.max(0, Math.min(1, ((ax - px) * ex + (ay - py) * ey) / (ex * ex + ey * ey || 1)));
-      min = Math.min(min, Math.hypot(ax - (px + ex * t), ay - (py + ey * t)));
+/** The runs of metal along a horizontal line, as [start, end] pairs. */
+function runs(y: number, x0: number, x1: number, samples = 600): Vec2[] {
+  const result: Vec2[] = [];
+  let open: number | null = null;
+  for (let i = 0; i <= samples; i++) {
+    const x = x0 + ((x1 - x0) * i) / samples;
+    const hit = metal(x, y);
+    if (hit && open === null) open = x;
+    if (!hit && open !== null) {
+      result.push([open, x]);
+      open = null;
     }
   }
-  return min;
+  if (open !== null) result.push([open, x1]);
+  return result;
 }
 
-describe('letter outlines', () => {
-  it.each(LETTERS)('%s closes exactly, is simple, and is deterministic', (letter) => {
-    const outline = OUTLINES[letter];
-    const last = outline.segments[outline.segments.length - 1].to;
-    expect(last).toEqual(outline.start);
-    const points = flatten(outline);
-    expect(points.length).toBeGreaterThan(100);
-    expect(isSimple(points)).toBe(true);
-    expect(flatten(outline)).toEqual(points);
-    expect(Math.abs(polygonArea(points))).toBeGreaterThan(0.8);
+describe('the united outline', () => {
+  it('is one outer oval with one simple negative-space contour wound the other way', () => {
+    expect(PARTS).toEqual(['emblem']);
+    expect(OUTLINES.emblem.holes).toHaveLength(1);
+    expect(isSimple(outer)).toBe(true);
+    expect(isSimple(negative)).toBe(true);
+    expect(polygonArea(outer) * polygonArea(negative)).toBeLessThan(0);
+    for (const [x, y] of negative) expect(contains(outer, x, y)).toBe(true);
+    expect(flatten(OUTLINES.emblem)).toEqual(flatten(OUTLINES.emblem));
   });
 
-  it.each(LETTERS)('%s spans the full letter height with its top and bottom on the shared lines', (letter) => {
-    const b = bounds2(flatten(OUTLINES[letter]));
-    expect(b.maxY).toBeCloseTo(LETTER_HEIGHT / 2, 2);
-    expect(b.minY).toBeCloseTo(-LETTER_HEIGHT / 2, 2);
+  it('is an elongated oval band about 5% of its height thick with a real open centre', () => {
+    const o = bounds2(outer);
+    const width = o.maxX - o.minX + 2 * BEVEL;
+    const height = o.maxY - o.minY + 2 * BEVEL;
+    expect(width / height).toBeGreaterThan(1.45);
+    expect(width / height).toBeLessThan(1.6);
+    expect(height).toBeCloseTo(2 * RIM.b, 5);
+    // Across the middle, the band is metal and the centre is open except for the letters.
+    expect(metal(RIM.a - BEVEL - RIM.band / 2, 0)).toBe(true);
+    expect(metal(-(RIM.a - BEVEL - RIM.band / 2), 0)).toBe(true);
+    expect(metal(0, 0)).toBe(false);
+    expect(metal(0, RIM.b - BEVEL - RIM.band / 2)).toBe(true);
+    expect(metalAlong(0, -1.2, 1.2)).toBeLessThan(0.35);
   });
 
-  it('leaves the upper left of the J open and keeps the hook terminal short', () => {
-    const j = flatten(OUTLINES.j);
-    const b = bounds2(j);
-    // The stem is on the right; the space to its upper left is empty down to below the middle.
-    expect(inside(j, b.minX + 0.3, 0.6)).toBe(false);
-    expect(inside(j, b.minX + 0.3, 0)).toBe(false);
-    expect(inside(j, b.maxX - 0.2, 0.6)).toBe(true);
-    // The terminal rises into the lower half only, and the hook is wide.
-    let terminalTop = -Infinity;
-    for (const [x, y] of j) if (x < b.minX + 0.4) terminalTop = Math.max(terminalTop, y);
-    expect(terminalTop).toBeGreaterThan(-0.5);
-    expect(terminalTop).toBeLessThan(0);
-    expect(b.maxX - b.minX).toBeGreaterThan(LETTER_HEIGHT * 0.5);
+  it('keeps every concave corner of the metal rounder than the bevel it rolls outward', () => {
+    // The negative contour's convex corners are the metal's concave corners.
+    expect(minRadius(negative)).toBeGreaterThan(BEVEL * 1.5);
+    expect(minRadius(outer)).toBeGreaterThan(0.5);
   });
 
-  it('keeps the T stem directly beneath its bar with open space either side', () => {
-    const t = flatten(OUTLINES.t);
-    const b = bounds2(t);
-    const centre = (b.minX + b.maxX) / 2;
-    expect(inside(t, centre, 0.85)).toBe(true);
-    expect(inside(t, centre, -0.2)).toBe(true);
-    expect(inside(t, b.minX + 0.15, -0.2)).toBe(false);
-    expect(inside(t, b.maxX - 0.15, -0.2)).toBe(false);
-    expect(inside(t, b.minX + 0.05, 0.75)).toBe(true);
-    expect(inside(t, b.maxX - 0.05, 0.8)).toBe(true);
+  it('joins the letters to the rim at the lower left and the upper right only', () => {
+    // Just inside the band, metal continues into the letters only in those two zones.
+    const inner = { a: RIM.a - RIM.band + BEVEL, b: RIM.b - RIM.band + BEVEL };
+    const attached: number[] = [];
+    for (let phi = 0; phi < 360; phi += 2) {
+      const r = phi * (Math.PI / 180);
+      if (metal(inner.a * Math.cos(r) * 0.96, inner.b * Math.sin(r) * 0.96)) attached.push(phi);
+    }
+    expect(attached.length).toBeGreaterThan(8);
+    const lowerLeft = attached.filter((phi) => phi > 180 && phi < 270);
+    const upperRight = attached.filter((phi) => phi > 0 && phi < 90);
+    expect(lowerLeft.length + upperRight.length).toBe(attached.length);
+    expect(lowerLeft.length).toBeGreaterThan(3);
+    expect(upperRight.length).toBeGreaterThan(3);
   });
 
-  it.each(LETTERS)('%s keeps every convex radius and stroke clear of the bevel', (letter) => {
-    const points = flatten(OUTLINES[letter]);
-    expect(minConvexRadius(points)).toBeGreaterThan(EXTRUSION.bevel * 1.15);
-    expect(minStrokeWidth(points)).toBeGreaterThan(EXTRUSION.bevel * 2 + 0.06);
+  it('draws a legible forward-leaning J on the left: a stem, a rounded return, and a short rising terminal', () => {
+    // The stem leans: its centre moves right by the slant as y rises.
+    const lower = runs(-0.4, -1.2, 0.2);
+    const upper = runs(0.5, -1.2, 0.2);
+    expect(lower).toHaveLength(2);
+    expect(upper).toHaveLength(1);
+    const stemLow = (lower[1][0] + lower[1][1]) / 2;
+    const stemHigh = (upper[0][0] + upper[0][1]) / 2;
+    expect(stemHigh - stemLow).toBeCloseTo(SLANT * 0.9, 1);
+    // Below the terminal's top the counter sits between terminal and stem, open above the terminal.
+    expect(lower[0][1] - lower[0][0]).toBeLessThan(0.3);
+    expect(lower[1][0] - lower[0][1], 'the J counter is open').toBeGreaterThan(0.15);
+    expect(metalAlong(-0.55, -0.9, -0.5), 'the return closes the bottom of the J').toBeGreaterThan(0.6);
+    expect(metal(-0.2, 0.9)).toBe(false);
   });
-});
 
-describe('monogram placement', () => {
-  it('sets the two letters apart by the gap, sharing top and bottom, at about 1.25:1', () => {
-    const j = centredOutline('j').map(([x, y]) => [x + PLACEMENT.j.centre[0], y + PLACEMENT.j.centre[1]] as Vec2);
-    const t = centredOutline('t').map(([x, y]) => [x + PLACEMENT.t.centre[0], y + PLACEMENT.t.centre[1]] as Vec2);
-    expect(nearestDistance(j, t)).toBeCloseTo(GAP, 2);
-    expect(bounds2(j).maxX).toBeLessThan(bounds2(t).minX);
-    expect(MONOGRAM.width / MONOGRAM.height).toBeGreaterThan(1.15);
-    expect(MONOGRAM.width / MONOGRAM.height).toBeLessThan(1.4);
-    expect(MONOGRAM.left).toBeCloseTo(-MONOGRAM.right, 6);
+  it('draws a legible T on the right: a crossbar over a centred slanted stem with open space either side', () => {
+    const bar = runs(0.6, 0.0, 1.2);
+    expect(bar).toHaveLength(1);
+    expect(bar[0][1] - bar[0][0]).toBeGreaterThan(0.6);
+    const stem = runs(-0.2, 0.0, 1.2);
+    expect(stem).toHaveLength(1);
+    expect(stem[0][1] - stem[0][0]).toBeLessThan(0.3);
+    const stemCentre = (stem[0][0] + stem[0][1]) / 2;
+    expect(stemCentre).toBeGreaterThan(bar[0][0] + 0.2);
+    expect(stemCentre).toBeLessThan(bar[0][1] - 0.2);
+    expect(metal(0.3, -0.3)).toBe(false);
+    expect(metal(0.95, -0.3)).toBe(false);
+    // The foot ends clear of the rim, and the J and T never touch.
+    expect(metalAlong(-0.75, 0.3, 0.75)).toBe(0);
+    expect(runs(0.3, -1.2, 1.2).length).toBeGreaterThanOrEqual(2);
   });
 });
 
 describe('framing', () => {
-  it('fills the right of the desktop opening beside the name at about half the viewport height', () => {
-    const b = monogramBounds(DESKTOP_VIEW, false);
+  it('fits the whole emblem in the right of the desktop opening beside the name', () => {
+    const b = projectedBounds(DESKTOP, DESKTOP_VIEW, 'emblem', REST);
     expect(b.left).toBeGreaterThan(0.5);
     expect(b.right).toBeLessThan(0.97);
-    expect(b.top).toBeGreaterThan(0.15);
+    expect(b.top).toBeGreaterThan(0.12);
     expect(b.bottom).toBeLessThan(0.85);
-    expect(b.bottom - b.top).toBeGreaterThan(0.45);
-    expect(b.bottom - b.top).toBeLessThan(0.62);
+    expect(b.right - b.left).toBeGreaterThan(0.38);
+    expect(b.right - b.left).toBeLessThan(0.5);
   });
 
   it.each([
     ['phone', PHONE_VIEW],
     ['narrow', NARROW_VIEW],
-  ])('shows the whole monogram under the identity lines on a %s viewport', (_name, viewport) => {
-    const b = monogramBounds(viewport, true);
+  ])('shows the whole emblem under the identity lines on a %s viewport', (_name, viewport) => {
+    const b = projectedBounds(COMPACT, viewport, 'emblem', REST);
     expect(b.left).toBeGreaterThan(0.03);
     expect(b.right).toBeLessThan(0.97);
     expect(b.right - b.left).toBeGreaterThan(0.6);
@@ -153,42 +165,37 @@ describe('framing', () => {
     expect(b.bottom).toBeLessThan(0.93);
   });
 
-  it('keeps the view near frontal at rest', () => {
+  it('keeps the view near frontal at rest so the oval stays an oval', () => {
     for (const layout of [DESKTOP, COMPACT]) {
       const pose = groupPose(layout, DESKTOP_VIEW, REST);
-      expect(Math.abs(pose.rotation[1])).toBeLessThan((16 * Math.PI) / 180);
-      expect(Math.abs(pose.rotation[1])).toBeGreaterThan((6 * Math.PI) / 180);
-      expect(Math.abs(pose.rotation[0])).toBeLessThan((8 * Math.PI) / 180);
-      for (const letter of LETTERS) expect(letterPose(layout, letter, REST).rotation.map(Math.abs)).toEqual([0, 0, 0]);
+      expect(Math.abs(pose.rotation[1])).toBeLessThan((12 * Math.PI) / 180);
+      expect(Math.abs(pose.rotation[0])).toBeLessThan((6 * Math.PI) / 180);
     }
   });
 });
 
 describe('motion', () => {
-  it('turns the monogram modestly and carries it up and right at the end of the fold, still mostly facing the viewer', () => {
+  it('moves as one rigid piece', () => {
+    const pose = partPose('emblem');
+    expect(pose.rotation).toEqual([0, 0, 0]);
+    expect(pose.position).toEqual([0, 0, 0]);
+  });
+
+  it('turns the emblem modestly and carries it up and right at the end of the fold, still facing the viewer', () => {
     const rest = groupPose(DESKTOP, DESKTOP_VIEW, REST);
     const folded = groupPose(DESKTOP, DESKTOP_VIEW, { reveal: 1, fold: 1 });
     expect(folded.position[0]).toBeGreaterThan(rest.position[0] + 0.5);
     expect(folded.position[1]).toBeGreaterThan(rest.position[1] + 0.5);
-    expect(Math.abs(folded.rotation[1] - rest.rotation[1])).toBeLessThan((35 * Math.PI) / 180);
-    const restWidth = monogramBounds(DESKTOP_VIEW, false).right - monogramBounds(DESKTOP_VIEW, false).left;
-    const foldedBounds = monogramBounds(DESKTOP_VIEW, false, { reveal: 1, fold: 1 });
-    expect(foldedBounds.right - foldedBounds.left).toBeGreaterThan(restWidth * 0.6);
-  });
-
-  it('keeps the letters together: their own turns stay within a few degrees and oppose each other', () => {
-    const j = letterPose(DESKTOP, 'j', { reveal: 1, fold: 1 });
-    const t = letterPose(DESKTOP, 't', { reveal: 1, fold: 1 });
-    expect(Math.abs(j.rotation[1])).toBeLessThan((6 * Math.PI) / 180);
-    expect(j.rotation[1]).toBeCloseTo(-t.rotation[1], 9);
-    expect(j.position).toEqual([PLACEMENT.j.centre[0], PLACEMENT.j.centre[1], 0]);
+    expect(Math.abs(folded.rotation[1] - rest.rotation[1])).toBeLessThan((30 * Math.PI) / 180);
+    const restBounds = projectedBounds(DESKTOP, DESKTOP_VIEW, 'emblem', REST);
+    const foldedBounds = projectedBounds(DESKTOP, DESKTOP_VIEW, 'emblem', { reveal: 1, fold: 1 });
+    expect(foldedBounds.right - foldedBounds.left).toBeGreaterThan((restBounds.right - restBounds.left) * 0.6);
   });
 
   it('is reversible and reads the rest pose again at fold 0, which is what reduced motion shows', () => {
     const rest = groupPose(DESKTOP, DESKTOP_VIEW, REST);
     groupPose(DESKTOP, DESKTOP_VIEW, { reveal: 1, fold: 1 });
-    const back = groupPose(DESKTOP, DESKTOP_VIEW, { reveal: 1, fold: 0 });
-    expect(back).toEqual(rest);
+    expect(groupPose(DESKTOP, DESKTOP_VIEW, { reveal: 1, fold: 0 })).toEqual(rest);
   });
 
   it('starts the reveal closer to the camera and pitched, then settles', () => {
@@ -200,11 +207,42 @@ describe('motion', () => {
   });
 });
 
-describe('letter solids', () => {
-  const geometries = Object.fromEntries(LETTERS.map((letter) => [letter, createLetterGeometry(letter)])) as Record<Letter, ReturnType<typeof createLetterGeometry>>;
+describe('the solid', () => {
+  const started = performance.now();
+  const geometry = createPartGeometry('emblem');
+  const totalMs = performance.now() - started;
+  const position = geometry.getAttribute('position');
+  const normal = geometry.getAttribute('normal');
 
-  it.each(LETTERS)('%s is as thick as the extrusion and as wide as its outline', (letter) => {
-    const position = geometries[letter].getAttribute('position');
+  it('builds once within bounded sizes, with the field converged and the dome built in well under a second', () => {
+    expect(lastBuild.capTriangles).toBeGreaterThan(2000);
+    expect(lastBuild.capTriangles).toBeLessThan(30000);
+    expect(lastBuild.capVertices).toBeLessThan(16000);
+    expect(lastBuild.sweeps).toBeLessThan(4000);
+    expect(lastBuild.lastUpdate).toBeLessThan(2e-6);
+    expect(lastBuild.buildMs).toBeLessThan(800);
+    expect(totalMs).toBeLessThan(1500);
+    expect(position.count).toBeLessThan(400000);
+  });
+
+  it('keeps every front cap triangle counterclockwise, inside the cap, and not inverted by the dome', () => {
+    const capZ = thickness('emblem') / 2;
+    let checked = 0;
+    for (let i = 0; i < position.count; i += 3) {
+      const z = [position.getZ(i), position.getZ(i + 1), position.getZ(i + 2)];
+      if (z.some((v) => v < capZ - 1e-6)) continue;
+      const x = [position.getX(i), position.getX(i + 1), position.getX(i + 2)];
+      const y = [position.getY(i), position.getY(i + 1), position.getY(i + 2)];
+      const area = (x[1] - x[0]) * (y[2] - y[0]) - (y[1] - y[0]) * (x[2] - x[0]);
+      expect(area).toBeGreaterThan(1e-9);
+      const cx = (x[0] + x[1] + x[2]) / 3, cy = (y[0] + y[1] + y[2]) / 3;
+      expect(contains(outer, cx, cy) && !contains(negative, cx, cy)).toBe(true);
+      checked++;
+    }
+    expect(checked).toBe(lastBuild.capTriangles);
+  });
+
+  it('is one bevel wider than its cap all round, flat on the back, and domed on the front', () => {
     let minZ = Infinity, maxZ = -Infinity, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
     for (let i = 0; i < position.count; i++) {
       minZ = Math.min(minZ, position.getZ(i));
@@ -214,49 +252,63 @@ describe('letter solids', () => {
       minY = Math.min(minY, position.getY(i));
       maxY = Math.max(maxY, position.getY(i));
     }
-    expect(maxZ - minZ).toBeCloseTo(THICKNESS, 5);
-    expect(maxZ).toBeCloseTo(-minZ, 5);
-    const b = bounds2(centredOutline(letter));
-    expect(minX).toBeCloseTo(b.minX, 3);
-    expect(maxX).toBeCloseTo(b.maxX, 3);
-    expect(minY).toBeCloseTo(b.minY, 3);
-    expect(maxY).toBeCloseTo(b.maxY, 3);
+    const half = thickness('emblem') / 2;
+    expect(minZ).toBeCloseTo(-half, 5);
+    expect(maxZ).toBeGreaterThan(half + EXTRUSION.dome.emblem * 0.6);
+    expect(maxZ).toBeLessThanOrEqual(half + EXTRUSION.dome.emblem + 1e-6);
+    const b = bounds2(outer);
+    expect(minX).toBeCloseTo(b.minX - BEVEL, 2);
+    expect(maxX).toBeCloseTo(b.maxX + BEVEL, 2);
+    expect(minY).toBeCloseTo(b.minY - BEVEL, 2);
+    expect(maxY).toBeCloseTo(b.maxY + BEVEL, 2);
   });
 
-  it.each(LETTERS)('%s has unit normals that agree with every face, flat on the caps and level on the wall', (letter) => {
-    const geometry = geometries[letter];
-    const position = geometry.getAttribute('position');
-    const normal = geometry.getAttribute('normal');
+  it('has unit normals that agree with every face, exact on the back cap, level on the wall, and continuous at the front edge', () => {
     expect(normal.count).toBe(position.count);
     expect(position.count % 3).toBe(0);
-    const capZ = THICKNESS / 2;
-    const wallZ = EXTRUSION.depth / 2;
+    const capZ = thickness('emblem') / 2;
+    const wallZ = EXTRUSION.depth.emblem / 2;
     let degenerate = 0;
+    const inverted: string[] = [];
     for (let i = 0; i < position.count; i += 3) {
       const p = [0, 1, 2].map((k) => [position.getX(i + k), position.getY(i + k), position.getZ(i + k)]);
       const ax = p[1][0] - p[0][0], ay = p[1][1] - p[0][1], az = p[1][2] - p[0][2];
       const bx = p[2][0] - p[0][0], by = p[2][1] - p[0][1], bz = p[2][2] - p[0][2];
       const face = [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
       const area = Math.hypot(face[0], face[1], face[2]);
-      if (area < 1e-9) {
+      if (area < 1e-10) {
         degenerate++;
         continue;
       }
       for (let k = 0; k < 3; k++) {
         const n = [normal.getX(i + k), normal.getY(i + k), normal.getZ(i + k)];
-        const len = Math.hypot(n[0], n[1], n[2]);
-        expect(len).toBeCloseTo(1, 5);
-        expect((face[0] * n[0] + face[1] * n[1] + face[2] * n[2]) / area).toBeGreaterThan(0);
+        expect(Math.hypot(n[0], n[1], n[2])).toBeCloseTo(1, 4);
+        const agreement = (face[0] * n[0] + face[1] * n[1] + face[2] * n[2]) / area;
+        if (agreement <= 0 && inverted.length < 5) inverted.push(`tri ${i / 3} v${k} at (${p[k].map((c) => c.toFixed(3)).join(',')}) area ${area.toExponential(2)} face z ${(face[2] / area).toFixed(3)} dot ${agreement.toFixed(3)}`);
         const z = p[k][2];
-        if (Math.abs(Math.abs(z) - capZ) < 1e-6 && Math.abs(face[2]) / area > 0.999) {
+        if (Math.abs(z + capZ) < 1e-6 && Math.abs(face[2]) / area > 0.999) {
           expect(Math.abs(n[0])).toBe(0);
           expect(Math.abs(n[1])).toBe(0);
-          expect(n[2]).toBe(Math.sign(z));
+          expect(n[2]).toBe(-1);
+        } else if (Math.abs(z - capZ) < 1e-6) {
+          // Front cap boundary vertices stay on the flat plane with the cap normal, so the bevel meets them without a crack.
+          expect(n[2]).toBeGreaterThan(0.999);
         } else if (Math.abs(z) <= wallZ + 1e-6) {
           expect(Math.abs(n[2])).toBeLessThan(1e-6);
         }
       }
     }
-    expect(degenerate).toBeLessThan(position.count / 3 / 200);
+    expect(inverted, inverted.join('\n')).toEqual([]);
+    expect(degenerate).toBeLessThan(position.count / 3 / 100);
+  });
+
+  it('has an inner wall facing the open centre', () => {
+    let inward = 0;
+    for (let i = 0; i < position.count; i++) {
+      const x = position.getX(i), y = position.getY(i);
+      const nx = normal.getX(i), ny = normal.getY(i);
+      if (Math.abs(position.getZ(i)) <= EXTRUSION.depth.emblem / 2 + 1e-6 && x * nx + y * ny < -0.5 * Math.hypot(x, y) * Math.hypot(nx, ny)) inward++;
+    }
+    expect(inward).toBeGreaterThan(100);
   });
 });

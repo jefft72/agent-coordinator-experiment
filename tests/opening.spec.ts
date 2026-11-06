@@ -124,28 +124,40 @@ test.describe('opening', () => {
     }
   });
 
-  test('?webgl=off renders the static poster of both letters without any canvas', async ({ page }) => {
+  test('?webgl=off renders the static poster of the emblem without any canvas', async ({ page }) => {
     await page.goto('/?webgl=off&intro=skip');
     await expect(scene(page)).toHaveAttribute('data-render-state', 'fallback', { timeout: 15_000 });
     const fallback = page.getByTestId('scene-fallback');
     await expect(fallback).toBeVisible();
-    await expect(fallback.locator('g[data-part="j"]')).toHaveCount(1);
-    await expect(fallback.locator('g[data-part="t"]')).toHaveCount(1);
-    await expect(fallback.locator('g[data-part] path')).toHaveCount(6);
-    // The poster is projected at the real viewport size: measured on the front faces (the second path of each
-    // letter, under the dark back and the bevel band), the J sits left of the T with a clear gap and both share the same lines.
-    const parts = await fallback.locator('g[data-part]').evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const r = node.querySelector('path:nth-of-type(2)')!.getBoundingClientRect();
-        return { part: node.getAttribute('data-part'), left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
-      }),
-    );
-    const j = parts.find((p) => p.part === 'j')!;
-    const t = parts.find((p) => p.part === 't')!;
-    expect(j.width).toBeGreaterThan(60);
-    expect(t.width).toBeGreaterThan(60);
-    expect(t.left - j.right, 'a visible gap separates the letters').toBeGreaterThan(Math.max(6, j.height * 0.03));
-    expect(Math.abs(j.height - t.height) / j.height, 'the letters share their height').toBeLessThan(0.12);
+    await expect(fallback.locator('g[data-part="emblem"]')).toHaveCount(1);
+    await expect(fallback.locator('g[data-part] path')).toHaveCount(3);
+    // The poster is projected at the real viewport size: the emblem is one elongated oval whose cap (the third path,
+    // over the dark back and the bevel band) is painted on the rim and the letters but not in the open centre.
+    const probe = await fallback.locator('g[data-part] path:nth-of-type(3)').evaluate((node) => {
+      const path = node as SVGGeometryElement;
+      const r = path.getBoundingClientRect();
+      const svg = path.ownerSVGElement!;
+      const toSvg = (x: number, y: number) => {
+        const point = new DOMPoint(x, y).matrixTransform(svg.getScreenCTM()!.inverse());
+        return new DOMPoint(point.x, point.y);
+      };
+      const cx = (r.left + r.right) / 2;
+      const cy = (r.top + r.bottom) / 2;
+      // Three probes across the middle of the oval, between and beside the letters, and one on the rim's left band.
+      const open = [0.5, 0.56, 0.44].map((f) => path.isPointInFill(toSvg(r.left + r.width * f, cy)));
+      const band = path.isPointInFill(toSvg(r.left + 3, cy));
+      // The letters: material is present somewhere in the upper-left quarter and the lower-right quarter.
+      let letters = 0;
+      for (let i = 0; i < 40; i++) {
+        if (path.isPointInFill(toSvg(r.left + r.width * (0.2 + i * 0.015), r.top + r.height * 0.3))) letters++;
+      }
+      return { width: r.width, height: r.height, open, band, letters, cx };
+    });
+    expect(probe.width / probe.height, 'the emblem is an elongated oval').toBeGreaterThan(1.3);
+    expect(probe.width).toBeGreaterThan(150);
+    expect(probe.band, 'the rim band is painted').toBe(true);
+    expect(probe.open.some((hit) => !hit), 'the centre of the oval is open').toBe(true);
+    expect(probe.letters, 'the letters are painted inside the oval').toBeGreaterThan(2);
     await expect(page.locator('canvas')).toHaveCount(0);
   });
 
@@ -376,7 +388,7 @@ test.describe('opening', () => {
 
   test('compact: the artwork is framed under the identity lines with a quiet lower margin', async ({ page }, testInfo) => {
     skipUnlessProject(testInfo, 'mobile', 'narrow');
-    // The poster projects the same letters through the same camera, so its paths stand in for the WebGL silhouette.
+    // The poster projects the same emblem through the same camera, so its paths stand in for the WebGL silhouette.
     await gotoAndSettle(page, '/?intro=skip&webgl=off');
     await expect(scene(page)).toHaveAttribute('data-render-state', 'fallback');
     const identityBox = await requireBox(page.getByTestId('identity'));
