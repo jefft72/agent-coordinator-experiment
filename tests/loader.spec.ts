@@ -91,11 +91,28 @@ test.describe('loader', () => {
     await expect(intro(page)).toBeHidden();
   });
 
-  test('a failed scene chunk keeps the page readable with the fallback', async ({ page }) => {
+  test('a failed scene chunk keeps the page readable with the fallback', async ({ page }, testInfo) => {
+    await recordLoadStates(page);
+    const started = Date.now();
     await page.goto('/?scene=chunk-fail', { waitUntil: 'commit' });
-    await waitForLoadState(page, ['failed', 'ready', 'bypassed'], 6_000);
+    // Navigation, script execution, and the initial effects vary under shared-runner load (one public CI run
+    // took over five seconds to reach the failure signal although every asset arrived within 130 ms), so the
+    // wall time is only recorded.
+    await waitForLoadState(page, ['failed'], 15_000);
+    testInfo.annotations.push({ type: 'chunk-fail-elapsed-ms', description: String(Date.now() - started) });
+
+    // The loader's own promise: a scene failure ends the intro as soon as it is reported, inside the deadline
+    // rather than waiting it out, and goes straight to failed without a reveal.
+    const durations = await measureDurations(page, INTRO_MEASURE);
+    expect(durations, `${INTRO_MEASURE} measures recorded`).toHaveLength(1);
+    const [duration] = durations;
+    testInfo.annotations.push({ type: 'chunk-fail-intro-ms', description: duration.toFixed(0) });
+    expect(duration, 'a failed scene ends the intro before the deadline, not at it').toBeLessThan(LOAD_DEADLINE_MS);
+    expect(await loadStateHistory(page), 'the failure ends the intro directly').toEqual(['loading', 'failed']);
+
     await waitForRenderState(page, ['failed']);
     await expect(scene(page).locator('[data-testid="scene-fallback"]')).toBeVisible();
+    await expect(intro(page)).toBeHidden();
     await expect(page.locator('h1#name')).toBeVisible();
     // The opening still fills the first viewport, and Hackathons is reachable by scrolling.
     const viewport = page.viewportSize() ?? { width: 0, height: 0 };
