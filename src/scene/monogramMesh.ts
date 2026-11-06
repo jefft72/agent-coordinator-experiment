@@ -283,10 +283,10 @@ function sampleField(field: Field, x: number, y: number, out: { h: number; gx: n
 
 /**
  * The front cap raised into a shallow dome: the cap retriangulated for
- * curvature, every vertex lifted by the field and given the field's own
- * normal, outline vertices fixed exactly on the flat cap plane with the cap
- * normal so the bevel meets them without a crack. Returns non-indexed
- * positions and normals.
+ * curvature, every vertex lifted by the field, normals taken from the
+ * lifted triangles, and outline vertices fixed exactly on the flat cap
+ * plane with the cap normal so the bevel meets them without a crack.
+ * Returns non-indexed positions and normals.
  */
 function domedCap(capZ: number, part: Part): { positions: Float32Array; normals: Float32Array } {
   const started = performance.now();
@@ -305,15 +305,35 @@ function domedCap(capZ: number, part: Part): { positions: Float32Array; normals:
     lifted[v * 3 + 1] = y;
     if (mesh.boundary[v]) {
       lifted[v * 3 + 2] = capZ;
-      normal[v * 3 + 2] = 1;
       continue;
     }
     sampleField(field, x, y, sample);
     lifted[v * 3 + 2] = capZ + sample.h;
-    const len = Math.hypot(sample.gx, sample.gy, 1);
-    normal[v * 3] = -sample.gx / len;
-    normal[v * 3 + 1] = -sample.gy / len;
-    normal[v * 3 + 2] = 1 / len;
+  }
+  // Normals from the lifted triangles themselves (area weighted), so they agree exactly with the surface the
+  // viewer sees; outline vertices keep the flat cap normal so the bevel meets them without a seam.
+  for (let t = 0; t < mesh.triangles.length; t += 3) {
+    const a = mesh.triangles[t], b = mesh.triangles[t + 1], c = mesh.triangles[t + 2];
+    const ax = lifted[b * 3] - lifted[a * 3], ay = lifted[b * 3 + 1] - lifted[a * 3 + 1], az = lifted[b * 3 + 2] - lifted[a * 3 + 2];
+    const bx = lifted[c * 3] - lifted[a * 3], by = lifted[c * 3 + 1] - lifted[a * 3 + 1], bz = lifted[c * 3 + 2] - lifted[a * 3 + 2];
+    const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+    for (const v of [a, b, c]) {
+      normal[v * 3] += nx;
+      normal[v * 3 + 1] += ny;
+      normal[v * 3 + 2] += nz;
+    }
+  }
+  for (let v = 0; v < vertexCount; v++) {
+    if (mesh.boundary[v]) {
+      normal[v * 3] = 0;
+      normal[v * 3 + 1] = 0;
+      normal[v * 3 + 2] = 1;
+      continue;
+    }
+    const len = Math.hypot(normal[v * 3], normal[v * 3 + 1], normal[v * 3 + 2]) || 1;
+    normal[v * 3] /= len;
+    normal[v * 3 + 1] /= len;
+    normal[v * 3 + 2] /= len;
   }
   const out = { positions: new Float32Array(mesh.triangles.length * 3), normals: new Float32Array(mesh.triangles.length * 3) };
   mesh.triangles.forEach((v, k) => {

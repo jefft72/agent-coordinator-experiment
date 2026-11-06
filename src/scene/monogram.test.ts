@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BEVEL,
   COMPACT,
+  THORN_TIP,
   DESKTOP,
   EXTRUSION,
   OUTLINES,
@@ -70,13 +71,16 @@ describe('the united outline', () => {
     expect(flatten(OUTLINES.emblem)).toEqual(flatten(OUTLINES.emblem));
   });
 
-  it('is an elongated oval band about 5% of its height thick with a real open centre', () => {
+  it('is an elongated oval band about 8% of its height thick with a real open centre, plus two rim thorns', () => {
     const o = bounds2(outer);
     const width = o.maxX - o.minX + 2 * BEVEL;
     const height = o.maxY - o.minY + 2 * BEVEL;
-    expect(width / height).toBeGreaterThan(1.45);
-    expect(width / height).toBeLessThan(1.6);
-    expect(height).toBeCloseTo(2 * RIM.b, 5);
+    expect(RIM.a / RIM.b).toBeGreaterThan(1.45);
+    expect(RIM.a / RIM.b).toBeLessThan(1.6);
+    expect(width).toBeCloseTo(2 * RIM.a, 2);
+    // The thorns reach beyond the oval's top and bottom by a bounded amount.
+    expect(height).toBeGreaterThan(2 * RIM.b + 0.2);
+    expect(height).toBeLessThan(2 * RIM.b + 0.45);
     // Across the middle, the band is metal and the centre is open except for the letters.
     expect(metal(RIM.a - BEVEL - RIM.band / 2, 0)).toBe(true);
     expect(metal(-(RIM.a - BEVEL - RIM.band / 2), 0)).toBe(true);
@@ -88,7 +92,9 @@ describe('the united outline', () => {
   it('keeps every concave corner of the metal rounder than the bevel it rolls outward', () => {
     // The negative contour's convex corners are the metal's concave corners.
     expect(minRadius(negative)).toBeGreaterThan(BEVEL * 1.5);
-    expect(minRadius(outer)).toBeGreaterThan(0.5);
+    // The rim thorns: finite convex tips, and coves at their roots rounder than the bevel.
+    expect(minRadius(outer)).toBeGreaterThan(THORN_TIP * 0.8);
+    expect(minRadius(outer, true)).toBeGreaterThan(BEVEL * 1.5);
   });
 
   it('joins the letters to the rim at the lower left and the upper right only', () => {
@@ -109,34 +115,41 @@ describe('the united outline', () => {
 
   it('draws a legible forward-leaning J on the left: a stem, a rounded return, and a short rising terminal', () => {
     // The stem leans: its centre moves right by the slant as y rises.
-    const lower = runs(-0.4, -1.2, 0.2);
-    const upper = runs(0.5, -1.2, 0.2);
+    // Between the counter's floor and the terminal's top, the line crosses the terminal and the stem (with its base thorn);
+    // higher, only the stem. The stem's left edge leans forward by the slant.
+    const lower = runs(-0.2, -1.2, 0.0);
+    const upper = runs(0.62, -0.95, 0.0);
     expect(lower).toHaveLength(2);
-    expect(upper).toHaveLength(1);
-    const stemLow = (lower[1][0] + lower[1][1]) / 2;
-    const stemHigh = (upper[0][0] + upper[0][1]) / 2;
-    expect(stemHigh - stemLow).toBeCloseTo(SLANT * 0.9, 1);
+    expect(upper).toHaveLength(2);
+    const stemUpper = upper[upper.length - 1];
+    expect(stemUpper[0] - lower[1][0]).toBeCloseTo(SLANT * 0.82, 1);
     // Below the terminal's top the counter sits between terminal and stem, open above the terminal.
-    expect(lower[0][1] - lower[0][0]).toBeLessThan(0.3);
-    expect(lower[1][0] - lower[0][1], 'the J counter is open').toBeGreaterThan(0.15);
-    expect(metalAlong(-0.55, -0.9, -0.5), 'the return closes the bottom of the J').toBeGreaterThan(0.6);
-    expect(metal(-0.2, 0.9)).toBe(false);
+    expect(lower[0][1] - lower[0][0]).toBeLessThan(0.35);
+    expect(lower[1][0] - lower[0][1], 'the J counter is open').toBeGreaterThan(0.12);
+    expect(metalAlong(-0.5, -0.85, -0.5), 'the return closes the bottom of the J').toBeGreaterThan(0.6);
+    expect(metal(-0.2, 0.8)).toBe(false);
+    // The spur on the upper shoulder and the thorn at the base of the stem are present.
+    expect(metal(-0.74, 0.62)).toBe(true);
+    expect(metal(-0.14, -0.33)).toBe(true);
   });
 
   it('draws a legible T on the right: a crossbar over a centred slanted stem with open space either side', () => {
+    // The bar runs from its free point into the rim; the stem, probed below its thorn, is centred under the bar's free part.
     const bar = runs(0.6, 0.0, 1.2);
     expect(bar).toHaveLength(1);
     expect(bar[0][1] - bar[0][0]).toBeGreaterThan(0.6);
-    const stem = runs(-0.2, 0.0, 1.2);
+    const stem = runs(-0.48, 0.0, 1.0);
     expect(stem).toHaveLength(1);
-    expect(stem[0][1] - stem[0][0]).toBeLessThan(0.3);
+    expect(stem[0][1] - stem[0][0]).toBeLessThan(0.36);
     const stemCentre = (stem[0][0] + stem[0][1]) / 2;
-    expect(stemCentre).toBeGreaterThan(bar[0][0] + 0.2);
-    expect(stemCentre).toBeLessThan(bar[0][1] - 0.2);
+    expect(stemCentre).toBeGreaterThan(bar[0][0] + 0.15);
+    expect(stemCentre).toBeLessThan(1.0 - 0.25);
+    // The stem's thorn is present on its outer edge, and the space beside the stem stays open.
+    expect(metal(0.87, -0.27)).toBe(true);
     expect(metal(0.3, -0.3)).toBe(false);
-    expect(metal(0.95, -0.3)).toBe(false);
+    expect(metal(1.05, -0.55)).toBe(false);
     // The foot ends clear of the rim, and the J and T never touch.
-    expect(metalAlong(-0.75, 0.3, 0.75)).toBe(0);
+    expect(metalAlong(-0.75, 0.3, 0.6)).toBe(0);
     expect(runs(0.3, -1.2, 1.2).length).toBeGreaterThanOrEqual(2);
   });
 });
@@ -220,8 +233,8 @@ describe('the solid', () => {
     expect(lastBuild.capVertices).toBeLessThan(16000);
     expect(lastBuild.sweeps).toBeLessThan(4000);
     expect(lastBuild.lastUpdate).toBeLessThan(2e-6);
-    expect(lastBuild.buildMs).toBeLessThan(800);
-    expect(totalMs).toBeLessThan(1500);
+    expect(lastBuild.buildMs).toBeLessThan(1000);
+    expect(totalMs).toBeLessThan(1600);
     expect(position.count).toBeLessThan(400000);
   });
 

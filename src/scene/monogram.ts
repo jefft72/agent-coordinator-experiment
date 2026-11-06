@@ -1,27 +1,29 @@
 /**
- * Pure geometry for the opening artwork: an italic JT emblem fused into an
- * elongated oval rim, one continuous piece of polished metal like a belt
- * buckle. Everything here is deterministic plain math, so the WebGL scene,
- * the SVG poster, and the unit tests share one description.
+ * Pure geometry for the opening artwork: a heavy italic JT emblem fused into
+ * an elongated oval rim, one continuous piece of polished metal like a
+ * streetwear belt buckle. Everything here is deterministic plain math, so
+ * the WebGL scene, the SVG poster, and the unit tests share one description.
  *
  * The emblem lives in one local frame: x right, y up, the oval two units
  * tall from y = -1 to y = 1 and 1.55 times as wide. It is a single compound
- * outline: the outer oval, and one inner negative-space contour that follows
- * the rim's inner edge and detours around the two letters where they grow
- * out of it. The J leans forward with a long stem, a compact rounded return,
- * and a short rising left terminal; its lower outer return flows into the
- * rim near seven o'clock. The T has a taut, gently swept crossbar over a
- * centred slanted stem with a clean foot; the crossbar's right end flows
- * into the rim near two o'clock. Each join is a broad tangent cove, and
- * every terminal is a compact round. Nothing else touches the rim, so the
- * dark space inside the oval stays one open region and the J counter stays
- * open.
+ * outline: the outer oval, which carries two swept thorns, and one inner
+ * negative-space contour that follows the rim's inner edge and detours
+ * around the two letters where they grow out of it. The J leans forward
+ * with a broad stem, a rounded return, and a rising left terminal; a spur
+ * sweeps back from its upper shoulder and a thorn from the base of its stem;
+ * its return flows into the rim near seven o'clock. The T has a heavy swept
+ * crossbar drawn out to a point on the left, a centred slanted stem with a
+ * clean foot and a thorn on its outer edge, and its crossbar's right end
+ * flows into the rim near two o'clock. Each join is a tangent cove, every
+ * thorn grows from a broad root to a small finite tip, and nothing else
+ * touches the rim, so the dark space inside the oval stays one open region
+ * and the J counter stays open.
  *
  * The drawn outline is the flat cap. The extrusion rolls a small
  * quarter-round bevel outward from it, so the silhouette is the cap grown
  * by the bevel radius, and a shallow dome is raised on the whole front cap
- * from one smooth field, so letters, joins, and rim share one continuous
- * surface. Concave corners need a radius larger than the bevel.
+ * from one smooth field, so letters, joins, thorns, and rim share one
+ * continuous surface. Concave corners need a radius larger than the bevel.
  *
  * Poses are rigid: the emblem moves as one. The scroll handoff turns it
  * modestly and carries it up and right while the first chapter covers it;
@@ -76,7 +78,6 @@ function unit(x: number, y: number): Vec2 {
 
 const RIGHT: Vec2 = [1, 0];
 const LEFT: Vec2 = [-1, 0];
-const UP: Vec2 = [0, 1];
 const DOWN: Vec2 = [0, -1];
 
 /** Handle length that makes a cubic between two unit tangents approximate a circular arc. */
@@ -148,13 +149,74 @@ class Pen {
       const phi = (from + ((to - from) * i) / count) * DEG;
       this.line([a * Math.cos(phi), b * Math.sin(phi)]);
     }
-    this.dir = ellipseTangent(a, b, to);
+    const t = ellipseTangent(a, b, to);
+    this.dir = to >= from ? t : [-t[0], -t[1]];
     return this;
+  }
+
+  /** Rounds a thorn's tip as two arcs through its apex, so even a sharp turn stays circular. */
+  point(t: Tip): this {
+    this.arc(t.apex, t.tangent);
+    return this.arc(t.exit, t.out);
+  }
+
+  private angle = 0;
+
+  /** Remembers or reads the ellipse angle the pen is at, for contours that walk an ellipse in pieces. */
+  heading(angle?: number): number {
+    if (angle !== undefined) this.angle = angle;
+    return this.angle;
   }
 
   close(): Outline {
     return { start: this.start, segments: this.segments };
   }
+}
+
+interface Tip {
+  apex: Vec2;
+  entry: Vec2;
+  exit: Vec2;
+  tangent: Vec2;
+  in: Vec2;
+  out: Vec2;
+}
+
+/**
+ * A rounded tip of radius `r` whose visible apex is `apex`: the edge arrives
+ * along `a` and leaves along `b`. The contour travels with the metal on its
+ * right, so the apex tangent is the bisector turned a quarter clockwise.
+ */
+function tip(apex: Vec2, a: Vec2, b: Vec2, r: number): Tip {
+  const cosA = Math.max(-1, Math.min(1, -(a[0] * b[0] + a[1] * b[1])));
+  const alpha = Math.acos(cosA);
+  const u = unit(-a[0] + b[0], -a[1] + b[1]);
+  const d = r / Math.sin(alpha / 2);
+  const corner: Vec2 = [apex[0] - u[0] * (d - r), apex[1] - u[1] * (d - r)];
+  const reach = r * Math.tan((Math.PI - alpha) / 2);
+  return {
+    apex,
+    entry: [corner[0] - a[0] * reach, corner[1] - a[1] * reach],
+    exit: [corner[0] + b[0] * reach, corner[1] + b[1] * reach],
+    tangent: [-u[1], u[0]],
+    in: a,
+    out: b,
+  };
+}
+
+function rotate(v: Vec2, degrees: number): Vec2 {
+  const c = Math.cos(degrees * DEG), s = Math.sin(degrees * DEG);
+  return [v[0] * c - v[1] * s, v[0] * s + v[1] * c];
+}
+
+/**
+ * A thorn tip from its apex and axis (root to apex): a symmetric wedge of
+ * `width` degrees whose edges are oriented for a contour that keeps the
+ * metal on its right, so the arriving edge turns right into the leaving one.
+ */
+function wedge(apex: Vec2, axis: Vec2, width: number, r: number): Tip {
+  const d = unit(axis[0], axis[1]);
+  return tip(apex, rotate(d, -width / 2), rotate([-d[0], -d[1]], width / 2), r);
 }
 
 function ellipsePoint(a: number, b: number, degrees: number): Vec2 {
@@ -164,6 +226,21 @@ function ellipsePoint(a: number, b: number, degrees: number): Vec2 {
 /** Counterclockwise unit tangent of the ellipse at the given angle. */
 function ellipseTangent(a: number, b: number, degrees: number): Vec2 {
   return unit(-a * Math.sin(degrees * DEG), b * Math.cos(degrees * DEG));
+}
+
+/**
+ * A thorn growing from a straight edge the pen is travelling along: a broad
+ * fillet out onto the leading edge, the wedge and its tip, and a tighter
+ * fillet back onto the same edge, which the pen then continues along.
+ */
+function thornOnEdge(pen: Pen, edgePoint: Vec2, edgeDir: Vec2, t: Tip, lead = 0.09, trail = 0.05): Pen {
+  const leadCorner = intersect(edgePoint, edgeDir, t.entry, t.in);
+  const trailCorner = intersect(t.exit, t.out, edgePoint, edgeDir);
+  fillet(pen, leadCorner, edgeDir, t.in, lead);
+  pen.line(t.entry);
+  pen.point(t);
+  fillet(pen, trailCorner, t.out, edgeDir, trail);
+  return pen;
 }
 
 /** Rounds the corner where the pen's current line (direction `a`) meets the next edge (direction `b`). */
@@ -177,8 +254,8 @@ function fillet(pen: Pen, corner: Vec2, a: Vec2, b: Vec2, r: number): Pen {
 /** Bevel radius rolled outward from the drawn (cap) outline; the silhouette is the cap grown by it. */
 export const BEVEL = 0.02;
 
-/** Silhouette oval: 1.55:1, with a band of 0.11 (about 5% of the height); the cap sits one bevel inside the silhouette. */
-export const RIM = { a: 1.55, b: 1.0, band: 0.11 };
+/** Silhouette oval: 1.55:1, with a band of 0.16 (8% of the height); the cap sits one bevel inside the silhouette. */
+export const RIM = { a: 1.55, b: 1.0, band: 0.16 };
 
 /** The cap's outer oval and inner edge, each one bevel inside its silhouette. */
 const OUTER = { a: RIM.a - BEVEL, b: RIM.b - BEVEL };
@@ -186,6 +263,9 @@ const INNER = { a: RIM.a - RIM.band + BEVEL, b: RIM.b - RIM.band + BEVEL };
 
 /** Forward lean of the letters: x shifts by this much per unit of height. */
 export const SLANT = 0.23;
+
+/** Cap radius of every thorn tip; the silhouette tip is this plus the bevel. */
+export const THORN_TIP = 0.018;
 
 const sh = (x: number, y: number): Vec2 => [x + SLANT * y, y];
 const shd = (x: number, y: number): Vec2 => unit(x + SLANT * y, y);
@@ -211,12 +291,14 @@ interface Flank {
  * edge and to a straight letter edge. Solved for the ellipse angle at which
  * the cove meets the ellipse exactly, so the sampled ellipse and the arc
  * share that point and direction. `entering` is the flank where the contour
- * leaves the ellipse for the letter; otherwise it returns to the ellipse.
+ * leaves the ellipse for the edge; otherwise it returns to the ellipse. `cw`
+ * is for contours that travel the ellipse clockwise.
  */
-function flank(a: number, b: number, edgePoint: Vec2, edgeDir: Vec2, r: number, lo: number, hi: number, entering: boolean): Flank {
+function flank(a: number, b: number, edgePoint: Vec2, edgeDir: Vec2, r: number, lo: number, hi: number, entering: boolean, cw = false): Flank {
   const gap = (phi: number): { f: number; edge: Vec2 } => {
     const e = ellipsePoint(a, b, phi);
-    const t = ellipseTangent(a, b, phi);
+    const ccw = ellipseTangent(a, b, phi);
+    const t: Vec2 = cw ? [-ccw[0], -ccw[1]] : ccw;
     const corner = intersect(e, t, edgePoint, edgeDir);
     const from = entering ? t : edgeDir;
     const to = entering ? edgeDir : t;
@@ -245,70 +327,96 @@ function flank(a: number, b: number, edgePoint: Vec2, edgeDir: Vec2, r: number, 
 }
 
 /**
- * The outer oval: clockwise, with a slightly flattened crown and lower arc.
+ * The outer oval, clockwise from the right, carrying two thorns that sweep
+ * the same way round: one on the lower right, one on the upper left. Each
+ * is a straight-edged wedge with a small finite tip, leaving the oval
+ * through a broad tangent cove on its leading edge and landing back through
+ * a tighter cove on its trailing edge.
  */
 function drawOuter(): Outline {
   const { a, b } = OUTER;
-  const crown = 0.62, side = 0.54;
+  const cw = (phi: number): Vec2 => {
+    const t = ellipseTangent(a, b, phi);
+    return [-t[0], -t[1]];
+  };
   const pen = new Pen([a, 0], DOWN);
-  pen.curve([0, -b], LEFT, b * side, a * crown);
-  pen.curve([-a, 0], UP, a * crown, b * side);
-  pen.curve([0, b], RIGHT, b * side, a * crown);
-  pen.curve([a, 0], DOWN, a * crown, b * side);
+  const thorn = (t: Tip, lo: number, hi: number) => {
+    const lead = flank(a, b, t.entry, t.in, 0.08, lo, hi, true, true);
+    const trail = flank(a, b, t.exit, t.out, 0.05, lo, hi, false, true);
+    pen.ellipse(a, b, pen.heading(), lead.phi);
+    pen.arc(lead.edge, t.in);
+    pen.line(t.entry);
+    pen.point(t);
+    pen.line(trail.edge);
+    pen.arc(ellipsePoint(a, b, trail.phi), cw(trail.phi));
+    pen.heading(trail.phi);
+  };
+  pen.heading(360);
+  thorn(wedge([0.6, -1.17], [-0.42, -0.91], 24, THORN_TIP), 290, 350);
+  thorn(wedge([-0.6, 1.17], [0.42, 0.91], 24, THORN_TIP), 110, 170);
+  pen.ellipse(a, b, pen.heading(), 0);
   return pen.close();
 }
 
 /**
  * The negative space: one counterclockwise contour that runs along the rim's
  * inner edge and, at each join, leaves it through a cove to trace the letter
- * clockwise and returns through another cove. Starting on the right side
- * below the T.
+ * clockwise (thorns included) and returns through another cove. Starting on
+ * the right side below the T.
  */
 function drawNegative(): Outline {
   const { a, b } = INNER;
-  // T geometry, upright before the slant: bar top and bottom, stem edges, foot, bar's left end.
-  const barTop = 0.68, barBottom = 0.5, stemL = 0.46, stemR = 0.64, foot = -0.6, barEnd = 0.08, termR = 0.09;
-  // J geometry: stem edges, top, terminal's outer edge and width, terminal top, return bottom.
-  const stemJL = -0.6, stemJR = -0.42, top = 0.7, termL = -1.0, termWidth = 0.16, termTop = -0.28;
+  const r = THORN_TIP;
+  // T, upright before the slant: bar top and bottom, stem edges, foot, and the thorn on the stem's outer edge.
+  const barTop = 0.69, barBottom = 0.42, stemL = 0.44, stemR = 0.71, foot = -0.62;
+  const barTip = wedge(sh(-0.04, 0.68), shd(-1, 0.22), 22, r);
+  const stemThorn = wedge(sh(1.02, -0.34), shd(0.75, -0.66), 24, r);
+  // J: stem edges, top, terminal, and the two thorns: a spur swept back from the upper shoulder and one at the stem's base.
+  const stemJL = -0.62, stemJR = -0.35, top = 0.66, termL = -1.06, termWidth = 0.24, termTop = 0.0;
+  const spur = wedge(sh(-0.92, 0.66), shd(-0.8, 0.6), 24, r);
+  const baseThorn = wedge(sh(-0.02, -0.34), shd(0.8, -0.6), 24, r);
+  const jEnd: Vec2 = [-0.86, -0.56];
+  const jEndDir = unit(-0.95, -0.3);
+  const floor = -0.38;
 
   // The four coves where the letters grow out of the rim.
-  const tLower = flank(a, b, sh(0.9, barBottom), LEFT, 0.12, 5, 50, true);
-  const tUpper = flank(a, b, sh(0.6, barTop + 0.01), RIGHT, 0.05, 40, 80, false);
-  const jUpper = flank(a, b, sh(termL, -0.5), SLANT_UP, 0.07, 190, 235, true);
-  // The J's return sweeps down and left and meets the rim at a shallow angle, so its cove is a soft merge.
-  const jEnd: Vec2 = [-0.86, -0.62];
-  const jEndDir = unit(-0.95, -0.32);
+  const tLower = flank(a, b, sh(0.95, barBottom), LEFT, 0.12, 5, 50, true);
+  const tUpper = flank(a, b, sh(0.5, barTop), RIGHT, 0.05, 40, 80, false);
+  const jUpper = flank(a, b, sh(termL, -0.5), SLANT_UP, 0.05, 190, 235, true);
   const jLower = flank(a, b, jEnd, jEndDir, 0.05, 215, 262, false);
 
   const pen = new Pen(ellipsePoint(a, b, tLower.phi), ellipseTangent(a, b, tLower.phi));
 
-  // T: cove into the bar's underside, down the stem, around the foot, up, around the bar's left end, and out along its top.
+  // T: cove into the bar's underside, down the stem with its thorn, around the foot, up, out to the bar's point, and back along the top.
   pen.arc(tLower.edge, LEFT);
-  fillet(pen, sh(stemR, barBottom), LEFT, SLANT_DOWN, 0.07);
-  fillet(pen, sh(stemR, foot), SLANT_DOWN, LEFT, 0.05);
-  fillet(pen, sh(stemL, foot), LEFT, SLANT_UP, 0.05);
-  fillet(pen, sh(stemL, barBottom), SLANT_UP, LEFT, 0.07);
-  pen.line(sh(barEnd + termR, barBottom));
-  pen.arc(sh(barEnd, (barTop + barBottom) / 2), SLANT_UP);
-  pen.arc(sh(barEnd + termR, barTop), RIGHT);
-  pen.curve(sh(0.42, barTop + 0.01), RIGHT, 0.16, 0.16);
+  fillet(pen, sh(stemR, barBottom), LEFT, SLANT_DOWN, 0.08);
+  thornOnEdge(pen, sh(stemR, 0), SLANT_DOWN, stemThorn);
+  fillet(pen, sh(stemR, foot), SLANT_DOWN, LEFT, 0.06);
+  fillet(pen, sh(stemL, foot), LEFT, SLANT_UP, 0.06);
+  fillet(pen, sh(stemL, barBottom), SLANT_UP, LEFT, 0.08);
+  pen.curve(barTip.entry, barTip.in, 0.3, 0.2);
+  pen.point(barTip);
+  pen.curve(sh(0.3, barTop), RIGHT, 0.24, 0.2);
   pen.line(tUpper.edge);
   pen.arc(ellipsePoint(a, b, tUpper.phi), ellipseTangent(a, b, tUpper.phi));
 
   // Over the top and down the left side to the J.
   pen.ellipse(a, b, tUpper.phi, jUpper.phi);
 
-  // J: cove into the terminal's outer edge, over its round, down into the counter, up the stem, over its top, down, and round into the rim.
+  // J: cove into the terminal, over its round, down into the counter, up the stem past the spur, over the top, down past the base thorn, and round into the rim.
   pen.arc(jUpper.edge, SLANT_UP);
   pen.line(sh(termL, termTop - termWidth / 2));
   pen.arc(sh(termL + termWidth / 2, termTop), RIGHT);
   pen.arc(sh(termL + termWidth, termTop - termWidth / 2), SLANT_DOWN);
-  pen.curve([-0.8, -0.5], RIGHT, 0.14, 0.14);
-  pen.curve(sh(stemJL, -0.2), SLANT_UP, 0.14, 0.18);
-  fillet(pen, sh(stemJL, top), SLANT_UP, RIGHT, 0.05);
-  fillet(pen, sh(stemJR, top), RIGHT, SLANT_DOWN, 0.05);
-  pen.line(sh(stemJR, -0.2));
-  pen.curve(jEnd, jEndDir, 0.45, 0.3);
+  // The counter: down the terminal's inner edge, along the floor, and up the stem's left edge, with rounded inner corners.
+  fillet(pen, sh(termL + termWidth, floor), SLANT_DOWN, RIGHT, 0.08);
+  fillet(pen, sh(stemJL, floor), RIGHT, SLANT_UP, 0.08);
+  thornOnEdge(pen, sh(stemJL, 0), SLANT_UP, spur);
+  fillet(pen, sh(stemJL, top), SLANT_UP, RIGHT, 0.06);
+  fillet(pen, sh(stemJR, top), RIGHT, SLANT_DOWN, 0.06);
+  thornOnEdge(pen, sh(stemJR, 0), SLANT_DOWN, baseThorn);
+  pen.line(sh(stemJR, -0.26));
+  pen.curve(jEnd, jEndDir, 0.42, 0.28);
   pen.line(jLower.edge);
   pen.arc(ellipsePoint(a, b, jLower.phi), ellipseTangent(a, b, jLower.phi));
 
@@ -323,8 +431,8 @@ function drawEmblem(): Outline {
 
 export const OUTLINES: Readonly<Record<Part, Outline>> = { emblem: drawEmblem() };
 
-/** Silhouette size of the emblem: the outer oval including its bevel. */
-export const EMBLEM = { width: 2 * RIM.a, height: 2 * RIM.b };
+/** Silhouette size of the emblem: the outer oval including its bevel, plus the rim thorns' reach. */
+export const EMBLEM = { width: 2 * RIM.a, height: 2 * 1.15 + 2 * BEVEL };
 
 /**
  * Extrusion: the bevel rolled outward from the cap, the straight wall depth,
@@ -338,10 +446,10 @@ export const EXTRUSION = {
   curveSegments: 24,
   depth: { emblem: 0.1 } as Readonly<Record<Part, number>>,
   lift: { emblem: 0 } as Readonly<Record<Part, number>>,
-  dome: { emblem: 0.05 } as Readonly<Record<Part, number>>,
+  dome: { emblem: 0.06 } as Readonly<Record<Part, number>>,
   /** Longest edge allowed in the domed cap's triangulation, and the spacing of the field's grid. */
-  domeEdge: 0.03,
-  domeGrid: 0.012,
+  domeEdge: 0.034,
+  domeGrid: 0.015,
 } as const;
 
 export function thickness(part: Part): number {
