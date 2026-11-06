@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ACESFilmicToneMapping, PerspectiveCamera, SRGBColorSpace } from 'three';
-import { Shells } from './Shells';
-import { layoutFor } from './shell';
+import { Letters } from './Letters';
+import { layoutFor } from './monogram';
 import { createEnvironment } from './environment';
 
 export interface OpeningSceneProps {
@@ -44,7 +44,7 @@ function SceneContent({ onFirstFrame, onFail }: OpeningSceneProps) {
     return () => canvas.removeEventListener('webglcontextlost', lost);
   }, [get, onFail]);
 
-  // The camera sits at the origin looking down -z; the shells are posed in
+  // The camera sits at the origin looking down -z; the monogram is posed in
   // front of it, so only the field of view changes per layout.
   useEffect(() => {
     const { camera } = get();
@@ -67,7 +67,7 @@ function SceneContent({ onFirstFrame, onFail }: OpeningSceneProps) {
     }
   });
 
-  return <Shells />;
+  return <Letters />;
 }
 
 /** The error boundary sits above the lazy import in SceneHost, so a failed chunk or render is caught there. */

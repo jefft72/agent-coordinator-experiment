@@ -7,8 +7,8 @@ const PANELS = 8;
  * The intro overlay: a near-black field, the name in its fixed position, a
  * visible Skip control, and one narrow pale opening across the centre that
  * resolves into aligned strips as fonts and the first scene frame arrive.
- * On reveal the panels between the strips separate along the sculpture's
- * diagonal and the page underneath is exposed through the widening gaps.
+ * On reveal the panels between the strips separate along their diagonal
+ * and the page underneath is exposed through the widening gaps.
  */
 export function Loader({ sequence }: { sequence: LoadSequence }) {
   const { state, steps, skip } = sequence;

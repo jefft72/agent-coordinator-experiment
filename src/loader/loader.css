@@ -29,8 +29,8 @@
 }
 
 /* A rotated stack of panels. Translating a panel along its own y axis moves it
-   perpendicular to the strips, which run along the slit between the two
-   shells (about 17 degrees from horizontal, rising to the right). */
+   perpendicular to the strips, which run diagonally across the opening
+   (about 17 degrees from horizontal, rising to the right). */
 .intro__panels {
   position: absolute;
   left: 50%;

@@ -124,27 +124,28 @@ test.describe('opening', () => {
     }
   });
 
-  test('?webgl=off renders the static poster of both shells without any canvas', async ({ page }) => {
+  test('?webgl=off renders the static poster of both letters without any canvas', async ({ page }) => {
     await page.goto('/?webgl=off&intro=skip');
     await expect(scene(page)).toHaveAttribute('data-render-state', 'fallback', { timeout: 15_000 });
     const fallback = page.getByTestId('scene-fallback');
     await expect(fallback).toBeVisible();
-    await expect(fallback.locator('g[data-part="upper"]')).toHaveCount(1);
-    await expect(fallback.locator('g[data-part="lower"]')).toHaveCount(1);
-    await expect(fallback.locator('g[data-part] path')).toHaveCount(8);
-    // The poster is projected at the real viewport size: the two shells sit apart, the lower one below the upper.
+    await expect(fallback.locator('g[data-part="j"]')).toHaveCount(1);
+    await expect(fallback.locator('g[data-part="t"]')).toHaveCount(1);
+    await expect(fallback.locator('g[data-part] path')).toHaveCount(6);
+    // The poster is projected at the real viewport size: measured on the front faces (the second path of each
+    // letter, under the dark back and the bevel band), the J sits left of the T with a clear gap and both share the same lines.
     const parts = await fallback.locator('g[data-part]').evaluateAll((nodes) =>
       nodes.map((node) => {
-        const r = (node as SVGGElement).getBoundingClientRect();
-        return { part: node.getAttribute('data-part'), top: r.top, bottom: r.bottom, width: r.width };
+        const r = node.querySelector('path:nth-of-type(2)')!.getBoundingClientRect();
+        return { part: node.getAttribute('data-part'), left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height };
       }),
     );
-    const upper = parts.find((p) => p.part === 'upper')!;
-    const lower = parts.find((p) => p.part === 'lower')!;
-    expect(upper.width).toBeGreaterThan(100);
-    expect(lower.width).toBeGreaterThan(100);
-    expect(lower.bottom).toBeGreaterThan(upper.bottom);
-    expect(lower.top).toBeGreaterThan(upper.top);
+    const j = parts.find((p) => p.part === 'j')!;
+    const t = parts.find((p) => p.part === 't')!;
+    expect(j.width).toBeGreaterThan(60);
+    expect(t.width).toBeGreaterThan(60);
+    expect(t.left - j.right, 'a visible gap separates the letters').toBeGreaterThan(Math.max(6, j.height * 0.03));
+    expect(Math.abs(j.height - t.height) / j.height, 'the letters share their height').toBeLessThan(0.12);
     await expect(page.locator('canvas')).toHaveCount(0);
   });
 
@@ -203,7 +204,7 @@ test.describe('opening', () => {
       if (nameOpacity > 0.05) expect(nameBottom, `at ${fraction} of the handoff the surface edge must stay below the name`).toBeLessThan(chapterTop);
     }
     const fold = Number(await page.evaluate(() => document.documentElement.style.getPropertyValue('--fold')));
-    expect(fold, 'the shells have closed and turned almost completely by 85% of the handoff').toBeGreaterThan(0.85);
+    expect(fold, 'the letters have turned and travelled almost completely by 85% of the handoff').toBeGreaterThan(0.85);
 
     await scrollTo(page, end + 40);
     await page.waitForTimeout(350);
@@ -375,7 +376,7 @@ test.describe('opening', () => {
 
   test('compact: the artwork is framed under the identity lines with a quiet lower margin', async ({ page }, testInfo) => {
     skipUnlessProject(testInfo, 'mobile', 'narrow');
-    // The poster projects the same shells through the same camera, so its paths stand in for the WebGL silhouette.
+    // The poster projects the same letters through the same camera, so its paths stand in for the WebGL silhouette.
     await gotoAndSettle(page, '/?intro=skip&webgl=off');
     await expect(scene(page)).toHaveAttribute('data-render-state', 'fallback');
     const identityBox = await requireBox(page.getByTestId('identity'));

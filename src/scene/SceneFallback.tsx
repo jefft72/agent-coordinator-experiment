@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ShellSvg } from './ShellSvg';
-import type { Viewport } from './shell';
+import { MonogramSvg } from './MonogramSvg';
+import type { Viewport } from './monogram';
 
 function readViewport(): Viewport {
   if (typeof window === 'undefined') return { width: 1440, height: 900 };
@@ -32,5 +32,5 @@ function useViewport(): Viewport {
  */
 export function SceneFallback({ compact }: { compact: boolean }) {
   const viewport = useViewport();
-  return <ShellSvg viewport={viewport} compact={compact} className="scene-fallback" testId="scene-fallback" />;
+  return <MonogramSvg viewport={viewport} compact={compact} className="scene-fallback" testId="scene-fallback" />;
 }

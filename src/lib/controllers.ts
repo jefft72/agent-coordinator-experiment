@@ -18,7 +18,7 @@ export type HandoffState = 'rest' | 'moving' | 'done';
  * rises over the pinned opening at scroll speed, so the opening is covered
  * exactly when the page has scrolled its height. Over that distance the
  * name and identity recede (CSS, from --handoff and --handoff-px) ahead of
- * the rising surface, and the shells close and turn out of the reading plane
+ * the rising surface, and the letters turn and travel out of the reading plane
  * between FOLD_START and FOLD_END. Once covered, the scene stops rendering
  * and the opening is hidden until the reader scrolls back. Every write is
  * followed by touchMotion so the demand renderer draws exactly one frame per

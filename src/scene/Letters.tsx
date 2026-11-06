@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import type { Group, Mesh } from 'three';
-import { FORM, buildShell, groupPose, layoutFor, lowerPose, type Pose, type PoseParams } from './shell';
-import { createShellGeometry, createShellMaterial } from './shellMesh';
+import { LETTERS, groupPose, layoutFor, letterPose, type Letter, type Pose, type PoseParams } from './monogram';
+import { createLetterGeometry, createLetterMaterial } from './monogramMesh';
 import { motion } from './motion';
 
 interface FrameState {
   group: Pose;
-  lower: Pose;
+  letters: Record<Letter, Pose>;
   params: PoseParams;
   pointer: { x: number; y: number };
   fold: number;
@@ -31,35 +31,43 @@ function close(a: number, b: number, epsilon: number): boolean {
   return Math.abs(a - b) < epsilon;
 }
 
+function applyPose(object: Group | Mesh, pose: Pose): void {
+  object.position.set(pose.position[0], pose.position[1], pose.position[2]);
+  object.rotation.set(pose.rotation[0], pose.rotation[1], pose.rotation[2]);
+  object.scale.setScalar(pose.scale);
+}
+
 /**
- * The two shells. Every frame reads the motion store, eases the scroll fold,
- * the loader reveal, and the pointer toward their targets, and writes rigid
- * poses to the group and the lower shell. Rendering is on demand: a frame is
- * requested whenever the store changes or an eased value is still moving,
+ * The two letters. Every frame reads the motion store, eases the scroll
+ * fold, the loader reveal, and the pointer toward their targets, and writes
+ * rigid poses to the group and each letter. Rendering is on demand: a frame
+ * is requested whenever the store changes or an eased value is still moving,
  * and nothing is requested once everything has settled, the opening is
  * covered, or the document is hidden. Under reduced motion the poses are
  * written straight from the store with no easing and no pointer.
  */
-export function Shells() {
+export function Letters() {
   const size = useThree((s) => s.size);
   const invalidate = useThree((s) => s.invalidate);
   const compact = size.width < 768;
   const layout = useMemo(() => layoutFor(compact), [compact]);
 
-  const upper = useMemo(() => createShellGeometry(buildShell(FORM, 'upper', 'full', layout.gap)), [layout]);
-  const lower = useMemo(() => createShellGeometry(buildShell(FORM, 'lower', 'full', layout.gap)), [layout]);
-  const material = useMemo(() => createShellMaterial(), []);
-  useEffect(() => () => upper.dispose(), [upper]);
-  useEffect(() => () => lower.dispose(), [lower]);
+  const geometries = useMemo(() => ({ j: createLetterGeometry('j'), t: createLetterGeometry('t') }), []);
+  const material = useMemo(() => createLetterMaterial(), []);
+  useEffect(() => () => {
+    geometries.j.dispose();
+    geometries.t.dispose();
+  }, [geometries]);
   useEffect(() => () => material.dispose(), [material]);
 
   const groupRef = useRef<Group>(null);
-  const lowerRef = useRef<Mesh>(null);
+  const jRef = useRef<Mesh>(null);
+  const tRef = useRef<Mesh>(null);
   const stateRef = useRef<FrameState | null>(null);
   useEffect(() => {
     stateRef.current = {
       group: freshPose(),
-      lower: freshPose(),
+      letters: { j: freshPose(), t: freshPose() },
       params: { reveal: 1, fold: 0, pointerX: 0, pointerY: 0 },
       pointer: { x: 0, y: 0 },
       fold: motion.fold,
@@ -95,8 +103,10 @@ export function Shells() {
   useFrame((_, delta) => {
     const state = stateRef.current;
     const group = groupRef.current;
-    const lowerMesh = lowerRef.current;
-    if (!state || !group || !lowerMesh || !motion.active) return;
+    const j = jRef.current;
+    const t = tRef.current;
+    if (!state || !group || !j || !t || !motion.active) return;
+    const meshes = { j, t };
     const dt = Math.min(delta, 1 / 30);
     const reduced = motion.reducedMotion;
     const pointerX = !reduced && motion.pointer.active ? motion.pointer.x : 0;
@@ -127,19 +137,16 @@ export function Shells() {
     params.fold = state.fold;
     params.pointerX = state.pointer.x;
     params.pointerY = state.pointer.y;
-    groupPose(layout, size, params, state.group);
-    lowerPose(layout, FORM, params, state.lower);
-    group.position.set(state.group.position[0], state.group.position[1], state.group.position[2]);
-    group.rotation.set(state.group.rotation[0], state.group.rotation[1], state.group.rotation[2]);
-    group.scale.setScalar(state.group.scale);
-    lowerMesh.position.set(state.lower.position[0], state.lower.position[1], state.lower.position[2]);
-    lowerMesh.rotation.set(state.lower.rotation[0], state.lower.rotation[1], state.lower.rotation[2]);
+    applyPose(group, groupPose(layout, size, params, state.group));
+    for (const letter of LETTERS) {
+      applyPose(meshes[letter], letterPose(layout, letter, params, state.letters[letter]));
+    }
   });
 
   return (
     <group ref={groupRef}>
-      <mesh geometry={upper} material={material} frustumCulled={false} />
-      <mesh ref={lowerRef} geometry={lower} material={material} frustumCulled={false} />
+      <mesh ref={jRef} geometry={geometries.j} material={material} frustumCulled={false} />
+      <mesh ref={tRef} geometry={geometries.t} material={material} frustumCulled={false} />
     </group>
   );
 }
