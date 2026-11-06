@@ -155,22 +155,24 @@
   display: block;
 }
 
-/* The identity plane recedes ahead of the chapter: the name and the lines
-   lift at most of the scroll speed while the name shrinks toward its
-   baseline, so the rising surface rides under the baseline and never cuts
-   through the glyphs. The lines fade first, the name holds until the surface
-   has covered most of the opening, and the sculpture folds away in between.
+/* The identity plane recedes ahead of the chapter. The chapter's edge rises
+   from the opening's own height, 56px under the name's baseline at rest, so
+   the name and the lines lift at nearly the scroll speed while the name
+   shrinks toward its baseline: the edge rides under the baseline and never
+   cuts through the glyphs before the name has faded. The lines fade first,
+   the name from the middle of the handoff, and the sculpture folds away in
+   between.
    The chapter title lifts a little faster than its surface, so it arrives
    rather than being carried. Scroll-controlled, so it is switched off under
    reduced motion and on phones, where the opening scrolls. */
 @media (min-width: 768px) and (min-height: 600px) and (prefers-reduced-motion: no-preference) {
   .opening__name {
     transform-origin: left bottom;
-    transform: translateY(calc(var(--handoff-px, 0px) * -0.82)) scale(calc(1 - var(--handoff, 0) * 0.42));
-    opacity: calc(1 - max(0, (var(--handoff, 0) - 0.6)) / 0.28);
+    transform: translateY(calc(var(--handoff-px, 0px) * -0.92)) scale(calc(1 - var(--handoff, 0) * 0.42));
+    opacity: calc(1 - max(0, (var(--handoff, 0) - 0.45)) / 0.28);
   }
   .opening__identity {
-    transform: translateY(calc(var(--handoff-px, 0px) * -0.82));
+    transform: translateY(calc(var(--handoff-px, 0px) * -0.92));
     opacity: calc(1 - max(0, (var(--handoff, 0) - 0.06)) / 0.3);
   }
   .hackathons .chapter__title {

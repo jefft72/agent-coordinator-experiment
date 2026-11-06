@@ -42,8 +42,8 @@
 
 .spread {
   position: relative;
-  margin-top: 40px;
-  padding: 56px 0 112px;
+  margin-top: 28px;
+  padding: 48px 0 112px;
   background: var(--field);
   scroll-margin-top: var(--header-clearance);
 }
@@ -94,9 +94,17 @@
   .spread--media-left {
     padding-bottom: 0;
   }
+  /* A grid item sticks only within its own grid area, so the tail is a fifth
+     row the media area spans: the overlap plus a margin, so the paper edge
+     never reaches the proof links while the media is still held. */
   .spread--media-left .spread__grid {
-    /* The overlap plus a margin, so the paper edge never reaches the proof links. */
-    padding-bottom: calc(32vh + 56px);
+    grid-template-rows: auto auto auto auto calc(32vh + 56px);
+    grid-template-areas:
+      'media head'
+      'media contrib'
+      'media flow'
+      'media proof'
+      'media .';
   }
   .spread--media-left .spread__media {
     position: sticky;

@@ -265,7 +265,7 @@ test.describe('chapters', () => {
     expect(state.reveal).toBe(1);
     expect(state.opacity).toBe(1);
     expect(state.transform).toMatch(/^(none|matrix\(1, 0, 0, 1, 0, 0\))$/);
-    expect(state.clip).toMatch(/^(none|inset\(0(px)? 0(px)? 0(px)? 0(px)?\))$/);
+    expect(state.clip).toMatch(/^(none|inset\(0(px|%)? 0(px|%)? 0(px|%)? 0(px|%)?\))$/);
     await expect(head.locator('h3')).toBeVisible();
 
     // Back up to the same position: the same intermediate value, so the motion is reversible.
@@ -325,7 +325,10 @@ test.describe('chapters', () => {
     await page.locator('#project-opencraft .spread__proof').evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
     await page.waitForTimeout(150);
     let box = await requireBox(media);
-    expect(Math.round(box.y), 'the media is held under the header').toBe(Math.round(clearance + 16));
+    // Held at the header line; the recede may already have lifted it by up to 4vh.
+    const held = clearance + 16;
+    expect(box.y, 'the media is held under the header').toBeLessThanOrEqual(held + 1);
+    expect(box.y, 'the media is held under the header').toBeGreaterThanOrEqual(held - 40);
     // The cover: Experience's surface rises over the held media before the media is pushed away.
     await page.evaluate(() => {
       const top = document.getElementById('experience')!.getBoundingClientRect().top + window.scrollY;
@@ -336,7 +339,8 @@ test.describe('chapters', () => {
     const experience = await requireBox(chapter(page, 'experience'));
     expect(experience.y, 'the paper edge has risen above the bottom of the held media').toBeLessThan(box.y + box.height);
     expect(experience.y, 'and the media is still visible above it').toBeGreaterThan(box.y + 40);
-    expect(box.y, 'the media is still held, not pushed').toBeLessThanOrEqual(clearance + 16 + 1);
+    expect(box.y, 'the media is still held, not pushed').toBeLessThanOrEqual(held + 1);
+    expect(box.y, 'the media is still held, not pushed').toBeGreaterThanOrEqual(held - 40);
     const text = await page.evaluate(() =>
       ['[role="tabpanel"]', '[data-testid="flow-opencraft"]', '.spread__proof'].map((s) => Number(getComputedStyle(document.querySelector(`#project-opencraft ${s}`)!).opacity)),
     );
@@ -385,6 +389,8 @@ test.describe('chapters', () => {
 
     // Inactive steps stay readable with a single dim, not alpha on top of opacity; the selected step is told by rule and weight.
     await contributionTab(page, project.id, 'analyst').click();
+    // The step colours transition over 200ms; sample once they have settled.
+    await page.waitForTimeout(350);
     const steps = await page.evaluate((id) => {
       const read = (step: string) => {
         const el = document.querySelector<HTMLElement>(`[data-testid="flow-step-${id}-${step}"]`)!;
