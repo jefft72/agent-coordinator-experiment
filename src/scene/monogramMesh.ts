@@ -1,5 +1,6 @@
 import { BufferAttribute, BufferGeometry, Color, ExtrudeGeometry, MeshStandardMaterial, Path, Shape } from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+import Delaunator from 'delaunator';
 import { EXTRUSION, OUTLINES, contains, contours, type Outline, type Part, type Vec2 } from './monogram';
 
 function trace(path: Path, outline: Outline): void {
@@ -77,27 +78,35 @@ export const lastBuild: BuildStats = { capVertices: 0, capTriangles: 0, gridNode
 const SOR_TOLERANCE = 1e-6;
 const SOR_MAX_SWEEPS = 4000;
 
-interface CapMesh {
+export interface CapMesh {
   /** x, y per vertex; z is the flat cap plane until the dome is applied. */
   xy: number[];
   /** 1 for vertices on the cap's outline, which stay fixed. */
   boundary: number[];
   /** Triangle vertex indices, counterclockwise. */
   triangles: number[];
+  /** The resampled contours as ordered vertex indices, outer first then holes; consecutive pairs (closing round) are the boundary segments. */
+  contours: number[][];
 }
 
 /** The contours with extra points inserted so no segment is longer than `maxEdge`; every point lies on the outline. */
-function resample(shape: Vec2[][], maxEdge: number): Vec2[] {
-  const out: Vec2[] = [];
-  for (const points of shape) {
-    for (let i = 0; i < points.length; i++) {
-      const [px, py] = points[i];
-      const [qx, qy] = points[(i + 1) % points.length];
+function resample(shape: Vec2[][], maxEdge: number): { points: Vec2[]; contours: number[][] } {
+  const points: Vec2[] = [];
+  const contours: number[][] = [];
+  for (const contour of shape) {
+    const indices: number[] = [];
+    for (let i = 0; i < contour.length; i++) {
+      const [px, py] = contour[i];
+      const [qx, qy] = contour[(i + 1) % contour.length];
       const pieces = Math.max(1, Math.ceil(Math.hypot(qx - px, qy - py) / maxEdge));
-      for (let k = 0; k < pieces; k++) out.push([px + ((qx - px) * k) / pieces, py + ((qy - py) * k) / pieces]);
+      for (let k = 0; k < pieces; k++) {
+        indices.push(points.length);
+        points.push([px + ((qx - px) * k) / pieces, py + ((qy - py) * k) / pieces]);
+      }
     }
+    contours.push(indices);
   }
-  return out;
+  return { points, contours };
 }
 
 /** Distance from a point to the nearest contour. */
@@ -122,16 +131,22 @@ function insideShape(shape: Vec2[][], x: number, y: number): boolean {
 }
 
 /**
- * The cap triangulated for curvature: a Delaunay triangulation (Bowyer and
- * Watson) of the outline resampled to short segments plus a regular grid of
- * interior points kept clear of the outline, with the triangles outside the
- * cap removed. Short outline segments are all Delaunay edges, so the mesh
- * boundary is exactly the outline and meets the bevel without cracks.
+ * The cap triangulated for curvature: a Delaunay triangulation (Delaunator,
+ * with robust orientation predicates) of the outline resampled to short
+ * segments plus a regular grid of interior points kept clear of the
+ * outline, with the triangles outside the cap removed. A Delaunay triangulation is not guaranteed to contain every
+ * outline segment, so the result is not assumed correct: the unit tests
+ * verify on the actual contour that every resampled boundary segment is a
+ * single-incidence cap edge (or a collinear chain of them), that every other
+ * edge has two opposite incidences, that no cap edge crosses the outline,
+ * that the covered area equals the sampled polygon's, and that the cap is
+ * one connected piece. Exported for those checks; it is pure and runs once
+ * per build.
  */
-function triangulateCap(shape: Vec2[][], maxEdge: number, spacing: number): CapMesh {
-  const boundaryPoints = resample(shape, maxEdge);
-  const points: Vec2[] = boundaryPoints.slice();
-  const boundary: number[] = boundaryPoints.map(() => 1);
+export function triangulateCap(shape: Vec2[][], maxEdge: number, spacing: number): CapMesh {
+  const sampled = resample(shape, maxEdge);
+  const points: Vec2[] = sampled.points.slice();
+  const boundary: number[] = sampled.points.map(() => 1);
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const [x, y] of points) {
     minX = Math.min(minX, x);
@@ -139,6 +154,8 @@ function triangulateCap(shape: Vec2[][], maxEdge: number, spacing: number): CapM
     minY = Math.min(minY, y);
     maxY = Math.max(maxY, y);
   }
+  // A regular grid: its cocircular squares are resolved consistently by the robust triangulator, and the
+  // regular triangles sample the smooth field evenly.
   for (let y = minY + spacing * 0.37; y < maxY; y += spacing) {
     for (let x = minX + spacing * 0.41; x < maxX; x += spacing) {
       if (insideShape(shape, x, y) && contourDistance(shape, x, y) > maxEdge * 0.9) {
@@ -148,50 +165,26 @@ function triangulateCap(shape: Vec2[][], maxEdge: number, spacing: number): CapM
     }
   }
 
-  // Bowyer and Watson with a super triangle; triangles are kept counterclockwise.
-  const span = Math.max(maxX - minX, maxY - minY) * 20;
-  const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
-  const n = points.length;
-  const all: Vec2[] = points.concat([[cx - span, cy - span], [cx + span, cy - span], [cx, cy + span]]);
-  interface Tri { a: number; b: number; c: number; x: number; y: number; r2: number }
-  const make = (a: number, b: number, c: number): Tri => {
-    const [ax, ay] = all[a], [bx, by] = all[b], [cxx, cyy] = all[c];
-    const d = 2 * (ax * (by - cyy) + bx * (cyy - ay) + cxx * (ay - by));
-    const ux = ((ax * ax + ay * ay) * (by - cyy) + (bx * bx + by * by) * (cyy - ay) + (cxx * cxx + cyy * cyy) * (ay - by)) / d;
-    const uy = ((ax * ax + ay * ay) * (cxx - bx) + (bx * bx + by * by) * (ax - cxx) + (cxx * cxx + cyy * cyy) * (bx - ax)) / d;
-    return { a, b, c, x: ux, y: uy, r2: (ax - ux) * (ax - ux) + (ay - uy) * (ay - uy) };
-  };
-  let tris: Tri[] = [make(n, n + 1, n + 2)];
-  for (let p = 0; p < n; p++) {
-    const [px, py] = all[p];
-    const bad: Tri[] = [];
-    const keep: Tri[] = [];
-    for (const t of tris) ((px - t.x) * (px - t.x) + (py - t.y) * (py - t.y) < t.r2 ? bad : keep).push(t);
-    // The boundary of the cavity: edges of bad triangles not shared by two bad triangles.
-    const edges = new Map<string, [number, number]>();
-    for (const t of bad) {
-      for (const [u, v] of [[t.a, t.b], [t.b, t.c], [t.c, t.a]] as [number, number][]) {
-        const key = u < v ? `${u}-${v}` : `${v}-${u}`;
-        if (edges.has(key)) edges.delete(key);
-        else edges.set(key, [u, v]);
-      }
-    }
-    for (const [u, v] of edges.values()) keep.push(make(u, v, p));
-    tris = keep;
-  }
+  // Delaunay triangulation with robust orientation predicates, then only the triangles inside the cap, counterclockwise.
+  const flat = new Float64Array(points.length * 2);
+  points.forEach(([x, y], i) => {
+    flat[i * 2] = x;
+    flat[i * 2 + 1] = y;
+  });
+  const delaunay = new Delaunator(flat);
   const triangles: number[] = [];
-  for (const t of tris) {
-    if (t.a >= n || t.b >= n || t.c >= n) continue;
-    const [ax, ay] = all[t.a], [bx, by] = all[t.b], [cxx, cyy] = all[t.c];
-    if (!insideShape(shape, (ax + bx + cxx) / 3, (ay + by + cyy) / 3)) continue;
-    const area = (bx - ax) * (cyy - ay) - (by - ay) * (cxx - ax);
-    if (Math.abs(area) < 1e-12) continue;
-    if (area > 0) triangles.push(t.a, t.b, t.c);
-    else triangles.push(t.a, t.c, t.b);
+  for (let t = 0; t < delaunay.triangles.length; t += 3) {
+    const a = delaunay.triangles[t], b = delaunay.triangles[t + 1], c = delaunay.triangles[t + 2];
+    const [ax, ay] = points[a], [bx, by] = points[b], [cx, cy] = points[c];
+    if (!insideShape(shape, (ax + bx + cx) / 3, (ay + by + cy) / 3)) continue;
+    const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+    if (Math.abs(area) < 1e-14) continue;
+    if (area > 0) triangles.push(a, b, c);
+    else triangles.push(a, c, b);
   }
   const xy: number[] = [];
   for (const [x, y] of points) xy.push(x, y);
-  return { xy, boundary, triangles };
+  return { xy, boundary, triangles, contours: sampled.contours };
 }
 
 interface Field {
@@ -265,28 +258,42 @@ function solveField(shape: Vec2[][], spacing: number, amplitude: number): Field 
   return { minX, minY, nx, ny, spacing, height };
 }
 
+/**
+ * Height and gradient at a point from the grid with bicubic (Catmull-Rom)
+ * interpolation, so the sampled surface and its normal are smooth across
+ * grid cells; bilinear sampling would leave the cells' creases visible as
+ * steps in long highlights. The height is never below the cap plane.
+ */
 function sampleField(field: Field, x: number, y: number, out: { h: number; gx: number; gy: number }): void {
   const { minX, minY, nx, ny, spacing, height } = field;
   const fx = (x - minX) / spacing, fy = (y - minY) / spacing;
   const i = Math.max(1, Math.min(nx - 3, Math.floor(fx)));
   const j = Math.max(1, Math.min(ny - 3, Math.floor(fy)));
   const tx = Math.max(0, Math.min(1, fx - i)), ty = Math.max(0, Math.min(1, fy - j));
-  const at = (ii: number, jj: number) => height[jj * nx + ii];
-  const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-  out.h = lerp(lerp(at(i, j), at(i + 1, j), tx), lerp(at(i, j + 1), at(i + 1, j + 1), tx), ty);
-  // Gradient from central differences at the four corners, interpolated the same way.
-  const gxAt = (ii: number, jj: number) => (at(ii + 1, jj) - at(ii - 1, jj)) / (2 * spacing);
-  const gyAt = (ii: number, jj: number) => (at(ii, jj + 1) - at(ii, jj - 1)) / (2 * spacing);
-  out.gx = lerp(lerp(gxAt(i, j), gxAt(i + 1, j), tx), lerp(gxAt(i, j + 1), gxAt(i + 1, j + 1), tx), ty);
-  out.gy = lerp(lerp(gyAt(i, j), gyAt(i + 1, j), tx), lerp(gyAt(i, j + 1), gyAt(i + 1, j + 1), tx), ty);
+  const cubic = (p0: number, p1: number, p2: number, p3: number, t: number) =>
+    0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
+  const slope = (p0: number, p1: number, p2: number, p3: number, t: number) =>
+    0.5 * (-p0 + p2 + 2 * (2 * p0 - 5 * p1 + 4 * p2 - p3) * t + 3 * (-p0 + 3 * p1 - 3 * p2 + p3) * t * t);
+  const rows: number[] = [];
+  const rowSlopes: number[] = [];
+  for (let dj = -1; dj <= 2; dj++) {
+    const row = (j + dj) * nx;
+    const p = [height[row + i - 1], height[row + i], height[row + i + 1], height[row + i + 2]];
+    rows.push(cubic(p[0], p[1], p[2], p[3], tx));
+    rowSlopes.push(slope(p[0], p[1], p[2], p[3], tx));
+  }
+  const h = cubic(rows[0], rows[1], rows[2], rows[3], ty);
+  out.h = Math.max(0, h);
+  out.gx = h > 0 ? cubic(rowSlopes[0], rowSlopes[1], rowSlopes[2], rowSlopes[3], ty) / spacing : 0;
+  out.gy = h > 0 ? slope(rows[0], rows[1], rows[2], rows[3], ty) / spacing : 0;
 }
 
 /**
  * The front cap raised into a shallow dome: the cap retriangulated for
- * curvature, every vertex lifted by the field, normals taken from the
- * lifted triangles, and outline vertices fixed exactly on the flat cap
- * plane with the cap normal so the bevel meets them without a crack.
- * Returns non-indexed positions and normals.
+ * curvature, every vertex lifted by the field and given the field's own
+ * smooth normal, and outline vertices fixed exactly on the flat cap plane
+ * with the cap normal so the bevel meets them without a crack. Returns
+ * non-indexed positions and normals.
  */
 function domedCap(capZ: number, part: Part): { positions: Float32Array; normals: Float32Array } {
   const started = performance.now();
@@ -298,6 +305,9 @@ function domedCap(capZ: number, part: Part): { positions: Float32Array; normals:
   const vertexCount = mesh.xy.length / 2;
   const lifted = new Float32Array(vertexCount * 3);
   const normal = new Float32Array(vertexCount * 3);
+  // Heights and normals both come from the smooth field, so the normals are independent of the triangles'
+  // shapes; on polished metal, normals taken from an irregular triangle fan show as waviness. Outline vertices
+  // keep the flat cap plane and normal so the bevel meets them without a seam.
   const sample = { h: 0, gx: 0, gy: 0 };
   for (let v = 0; v < vertexCount; v++) {
     const x = mesh.xy[v * 2], y = mesh.xy[v * 2 + 1];
@@ -305,35 +315,15 @@ function domedCap(capZ: number, part: Part): { positions: Float32Array; normals:
     lifted[v * 3 + 1] = y;
     if (mesh.boundary[v]) {
       lifted[v * 3 + 2] = capZ;
+      normal[v * 3 + 2] = 1;
       continue;
     }
     sampleField(field, x, y, sample);
     lifted[v * 3 + 2] = capZ + sample.h;
-  }
-  // Normals from the lifted triangles themselves (area weighted), so they agree exactly with the surface the
-  // viewer sees; outline vertices keep the flat cap normal so the bevel meets them without a seam.
-  for (let t = 0; t < mesh.triangles.length; t += 3) {
-    const a = mesh.triangles[t], b = mesh.triangles[t + 1], c = mesh.triangles[t + 2];
-    const ax = lifted[b * 3] - lifted[a * 3], ay = lifted[b * 3 + 1] - lifted[a * 3 + 1], az = lifted[b * 3 + 2] - lifted[a * 3 + 2];
-    const bx = lifted[c * 3] - lifted[a * 3], by = lifted[c * 3 + 1] - lifted[a * 3 + 1], bz = lifted[c * 3 + 2] - lifted[a * 3 + 2];
-    const nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
-    for (const v of [a, b, c]) {
-      normal[v * 3] += nx;
-      normal[v * 3 + 1] += ny;
-      normal[v * 3 + 2] += nz;
-    }
-  }
-  for (let v = 0; v < vertexCount; v++) {
-    if (mesh.boundary[v]) {
-      normal[v * 3] = 0;
-      normal[v * 3 + 1] = 0;
-      normal[v * 3 + 2] = 1;
-      continue;
-    }
-    const len = Math.hypot(normal[v * 3], normal[v * 3 + 1], normal[v * 3 + 2]) || 1;
-    normal[v * 3] /= len;
-    normal[v * 3 + 1] /= len;
-    normal[v * 3 + 2] /= len;
+    const len = Math.hypot(sample.gx, sample.gy, 1);
+    normal[v * 3] = -sample.gx / len;
+    normal[v * 3 + 1] = -sample.gy / len;
+    normal[v * 3 + 2] = 1 / len;
   }
   const out = { positions: new Float32Array(mesh.triangles.length * 3), normals: new Float32Array(mesh.triangles.length * 3) };
   mesh.triangles.forEach((v, k) => {

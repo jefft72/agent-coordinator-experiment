@@ -22,7 +22,7 @@ import {
   thickness,
   type Vec2,
 } from './monogram';
-import { createPartGeometry, lastBuild } from './monogramMesh';
+import { createPartGeometry, lastBuild, triangulateCap, type CapMesh } from './monogramMesh';
 
 const DESKTOP_VIEW = { width: 1440, height: 900 };
 const PHONE_VIEW = { width: 390, height: 844 };
@@ -323,5 +323,133 @@ describe('the solid', () => {
       if (Math.abs(position.getZ(i)) <= EXTRUSION.depth.emblem / 2 + 1e-6 && x * nx + y * ny < -0.5 * Math.hypot(x, y) * Math.hypot(nx, ny)) inward++;
     }
     expect(inward).toBeGreaterThan(100);
+  });
+});
+
+describe('the cap triangulation', () => {
+  const shape = contours(OUTLINES.emblem);
+  const mesh: CapMesh = triangulateCap(shape, EXTRUSION.domeEdge, EXTRUSION.domeEdge * 1.2);
+  const at = (v: number): Vec2 => [mesh.xy[v * 2], mesh.xy[v * 2 + 1]];
+  const key = (a: number, b: number) => (a < b ? `${a}-${b}` : `${b}-${a}`);
+
+  // Directed incidences per undirected edge.
+  const incidences = new Map<string, number[][]>();
+  for (let t = 0; t < mesh.triangles.length; t += 3) {
+    for (let k = 0; k < 3; k++) {
+      const a = mesh.triangles[t + k], b = mesh.triangles[t + ((k + 1) % 3)];
+      const list = incidences.get(key(a, b)) ?? [];
+      list.push([a, b]);
+      incidences.set(key(a, b), list);
+    }
+  }
+  const boundarySegments: [number, number][] = [];
+  for (const contour of mesh.contours) {
+    for (let i = 0; i < contour.length; i++) boundarySegments.push([contour[i], contour[(i + 1) % contour.length]]);
+  }
+
+  /** Whether `w` lies on the straight segment from `u` to `v`, strictly between them. */
+  const between = (u: number, v: number, w: number): boolean => {
+    const [ux, uy] = at(u), [vx, vy] = at(v), [wx, wy] = at(w);
+    const ex = vx - ux, ey = vy - uy;
+    const cross = ex * (wy - uy) - ey * (wx - ux);
+    const t = ((wx - ux) * ex + (wy - uy) * ey) / (ex * ex + ey * ey);
+    return Math.abs(cross) < 1e-9 && t > 1e-9 && t < 1 - 1e-9;
+  };
+
+  it('keeps every resampled boundary segment as a single-incidence cap edge or a collinear chain of them', () => {
+    const neighbours = new Map<number, number[]>();
+    for (const list of incidences.values()) {
+      if (list.length !== 1) continue;
+      const [a, b] = list[0];
+      neighbours.set(a, [...(neighbours.get(a) ?? []), b]);
+      neighbours.set(b, [...(neighbours.get(b) ?? []), a]);
+    }
+    const covered = new Set<string>();
+    const missing: string[] = [];
+    let chains = 0;
+    for (const [u, v] of boundarySegments) {
+      if (incidences.get(key(u, v))?.length === 1) {
+        covered.add(key(u, v));
+        continue;
+      }
+      // A chain of single-incidence edges from u to v through points on the segment.
+      let here = u;
+      let ok = true;
+      const steps: number[] = [];
+      while (here !== v) {
+        const next = (neighbours.get(here) ?? []).find((n) => n === v || (between(u, v, n) && !steps.includes(n)));
+        if (next === undefined) {
+          ok = false;
+          break;
+        }
+        steps.push(next);
+        covered.add(key(here, next));
+        here = next;
+      }
+      if (ok) chains++;
+      else missing.push(`${u}-${v} at (${at(u).map((c) => c.toFixed(3))}) to (${at(v).map((c) => c.toFixed(3))})`);
+    }
+    expect(missing, `boundary segments absent from the cap: ${missing.join('; ')}`).toEqual([]);
+    expect(chains).toBeLessThan(boundarySegments.length * 0.02);
+    // No single-incidence edge exists beyond the boundary: nothing is open inside the cap.
+    const open: string[] = [];
+    for (const [k, list] of incidences) if (list.length === 1 && !covered.has(k)) open.push(k);
+    expect(open, `unexpected open edges: ${open.slice(0, 10).join(' ')}`).toEqual([]);
+    expect(boundarySegments.length).toBeGreaterThan(1000);
+  });
+
+  it('gives every interior edge exactly two oppositely directed incidences', () => {
+    let interior = 0;
+    for (const list of incidences.values()) {
+      if (list.length === 1) continue;
+      expect(list).toHaveLength(2);
+      expect(list[0][0]).toBe(list[1][1]);
+      expect(list[0][1]).toBe(list[1][0]);
+      interior++;
+    }
+    expect(interior).toBeGreaterThan(3000);
+  });
+
+  it('covers exactly the sampled polygon area with positive triangles', () => {
+    let sum = 0;
+    for (let t = 0; t < mesh.triangles.length; t += 3) {
+      const [ax, ay] = at(mesh.triangles[t]), [bx, by] = at(mesh.triangles[t + 1]), [cx, cy] = at(mesh.triangles[t + 2]);
+      const area = ((bx - ax) * (cy - ay) - (by - ay) * (cx - ax)) / 2;
+      expect(area).toBeGreaterThan(0);
+      sum += area;
+    }
+    const polygon = mesh.contours.map((contour) => Math.abs(polygonArea(contour.map(at))));
+    const expected = polygon[0] - polygon.slice(1).reduce((a, b) => a + b, 0);
+    expect(Math.abs(sum - expected)).toBeLessThan(expected * 1e-9);
+  });
+
+  it('has no cap edge properly crossing a boundary segment, and is one connected piece', () => {
+    const cross = (p: Vec2, q: Vec2, r: Vec2, s: Vec2): boolean => {
+      const o = (a: Vec2, b: Vec2, c: Vec2) => (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+      return o(p, q, r) * o(p, q, s) < -1e-18 && o(r, s, p) * o(r, s, q) < -1e-18;
+    };
+    const segments = boundarySegments.map(([u, v]) => [at(u), at(v)] as [Vec2, Vec2]);
+    let crossings = 0;
+    for (const list of incidences.values()) {
+      const [a, b] = list[0];
+      const p = at(a), q = at(b);
+      for (const [r, s] of segments) if (cross(p, q, r, s)) crossings++;
+    }
+    expect(crossings).toBe(0);
+    // Union-find over triangles sharing an edge.
+    const parent = Array.from({ length: mesh.triangles.length / 3 }, (_, i) => i);
+    const find = (i: number): number => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+    const owner = new Map<string, number>();
+    for (let t = 0; t < mesh.triangles.length; t += 3) {
+      for (let k = 0; k < 3; k++) {
+        const e = key(mesh.triangles[t + k], mesh.triangles[t + ((k + 1) % 3)]);
+        const other = owner.get(e);
+        if (other === undefined) owner.set(e, t / 3);
+        else parent[find(other)] = find(t / 3);
+      }
+    }
+    const roots = new Set<number>();
+    for (let i = 0; i < parent.length; i++) roots.add(find(i));
+    expect(roots.size).toBe(1);
   });
 });

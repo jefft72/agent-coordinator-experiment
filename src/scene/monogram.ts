@@ -154,10 +154,32 @@ class Pen {
     return this;
   }
 
-  /** Rounds a thorn's tip as two arcs through its apex, so even a sharp turn stays circular. */
-  point(t: Tip): this {
-    this.arc(t.apex, t.tangent);
-    return this.arc(t.exit, t.out);
+  /**
+   * Rounds a thorn's tip: a few short lines along the tip's own circle from
+   * its entry to its exit through the apex. A tip is tiny, so lines keep its
+   * sampling sparse and well conditioned for the cap's triangulation, where
+   * dozens of cocircular points within a few thousandths would not be.
+   */
+  point(t: Tip, pieces = 8): this {
+    const u: Vec2 = [t.tangent[1], -t.tangent[0]];
+    const cx = t.apex[0] + u[0] * t.radius, cy = t.apex[1] + u[1] * t.radius;
+    const from = Math.atan2(t.entry[1] - cy, t.entry[0] - cx);
+    let sweep = Math.atan2(t.exit[1] - cy, t.exit[0] - cx) - from;
+    // The arc runs the short way round, through the apex.
+    const apexAngle = Math.atan2(t.apex[1] - cy, t.apex[0] - cx);
+    let viaApex = apexAngle - from;
+    while (viaApex <= -Math.PI) viaApex += 2 * Math.PI;
+    while (viaApex > Math.PI) viaApex -= 2 * Math.PI;
+    while (sweep <= -Math.PI) sweep += 2 * Math.PI;
+    while (sweep > Math.PI) sweep -= 2 * Math.PI;
+    if (Math.sign(sweep) !== Math.sign(viaApex)) sweep -= Math.sign(sweep) * 2 * Math.PI;
+    for (let i = 1; i < pieces; i++) {
+      const angle = from + (sweep * i) / pieces;
+      this.line([cx + t.radius * Math.cos(angle), cy + t.radius * Math.sin(angle)]);
+    }
+    this.line(t.exit);
+    this.dir = t.out;
+    return this;
   }
 
   private angle = 0;
@@ -180,6 +202,7 @@ interface Tip {
   tangent: Vec2;
   in: Vec2;
   out: Vec2;
+  radius: number;
 }
 
 /**
@@ -201,6 +224,7 @@ function tip(apex: Vec2, a: Vec2, b: Vec2, r: number): Tip {
     tangent: [-u[1], u[0]],
     in: a,
     out: b,
+    radius: r,
   };
 }
 
@@ -448,8 +472,8 @@ export const EXTRUSION = {
   lift: { emblem: 0 } as Readonly<Record<Part, number>>,
   dome: { emblem: 0.06 } as Readonly<Record<Part, number>>,
   /** Longest edge allowed in the domed cap's triangulation, and the spacing of the field's grid. */
-  domeEdge: 0.034,
-  domeGrid: 0.015,
+  domeEdge: 0.022,
+  domeGrid: 0.012,
 } as const;
 
 export function thickness(part: Part): number {

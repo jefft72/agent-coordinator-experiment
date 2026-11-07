@@ -19,6 +19,7 @@
   "dependencies": {
     "@react-three/drei": "^10.7.6",
     "@react-three/fiber": "^9.8.2",
+    "delaunator": "^5.1.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "three": "^0.187.0"
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@eslint/js": "^9.39.0",
     "@playwright/test": "^1.64.1",
+    "@types/delaunator": "^5.0.3",
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
