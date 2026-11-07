@@ -70,9 +70,19 @@ export interface BuildStats {
   /** Largest change of any node in the final sweep, relative to the field's peak. */
   lastUpdate: number;
   buildMs: number;
+  /** Milliseconds per phase: classifying the field grid, solving it, choosing interior points, triangulating, lifting. */
+  phases: { classify: number; solve: number; points: number; triangulate: number; lift: number };
 }
 
-export const lastBuild: BuildStats = { capVertices: 0, capTriangles: 0, gridNodes: 0, sweeps: 0, lastUpdate: 0, buildMs: 0 };
+export const lastBuild: BuildStats = {
+  capVertices: 0,
+  capTriangles: 0,
+  gridNodes: 0,
+  sweeps: 0,
+  lastUpdate: 0,
+  buildMs: 0,
+  phases: { classify: 0, solve: 0, points: 0, triangulate: 0, lift: 0 },
+};
 
 /** Successive over-relaxation stops once no node moves more than this fraction of the current peak, or at this many sweeps. */
 const SOR_TOLERANCE = 1e-6;
@@ -109,8 +119,8 @@ function resample(shape: Vec2[][], maxEdge: number): { points: Vec2[]; contours:
   return { points, contours };
 }
 
-/** Distance from a point to the nearest contour. */
-function contourDistance(shape: Vec2[][], x: number, y: number): number {
+/** Distance from a point to the nearest contour, by scanning every segment; the reference for the index. */
+export function contourDistance(shape: Vec2[][], x: number, y: number): number {
   let best = Infinity;
   for (const points of shape) {
     for (let i = 0; i < points.length; i++) {
@@ -125,9 +135,116 @@ function contourDistance(shape: Vec2[][], x: number, y: number): number {
   return best;
 }
 
-function insideShape(shape: Vec2[][], x: number, y: number): boolean {
+/** Inside the outer contour and outside every hole, by scanning every edge; the reference for the index. */
+export function insideShape(shape: Vec2[][], x: number, y: number): boolean {
   const [outer, ...holes] = shape;
   return contains(outer, x, y) && !holes.some((hole) => contains(hole, x, y));
+}
+
+/**
+ * A spatial index over the contours so the thousands of inside and distance
+ * queries of a build do not each scan every edge. It changes nothing about
+ * the answers: the even-odd test visits only the edges whose y range spans
+ * the query, using the same arithmetic as `contains`, and the distance test
+ * visits only the segments bucketed into the cells around the query, which
+ * is every segment that could lie within one cell of it.
+ */
+export interface ShapeIndex {
+  shape: Vec2[][];
+  minY: number;
+  band: number;
+  /** Per contour, per y band, the indices i of edges (points[i - 1] to points[i]) that span the band. */
+  bands: number[][][];
+  cell: number;
+  minX: number;
+  columns: number;
+  /** Per cell, the segments (contour, i) that overlap it. */
+  cells: Map<number, number[]>;
+}
+
+export function indexShape(shape: Vec2[][], cell: number): ShapeIndex {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const points of shape) {
+    for (const [x, y] of points) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  minX -= cell;
+  minY -= cell;
+  const band = cell;
+  const bandCount = Math.ceil((maxY - minY) / band) + 2;
+  const columns = Math.ceil((maxX - minX) / cell) + 2;
+  const bands: number[][][] = [];
+  const cells = new Map<number, number[]>();
+  shape.forEach((points, c) => {
+    const perBand: number[][] = Array.from({ length: bandCount }, () => []);
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const [xi, yi] = points[i];
+      const [xj, yj] = points[j];
+      const b0 = Math.max(0, Math.floor((Math.min(yi, yj) - minY) / band));
+      const b1 = Math.min(bandCount - 1, Math.floor((Math.max(yi, yj) - minY) / band));
+      for (let b = b0; b <= b1; b++) perBand[b].push(i);
+      const cx0 = Math.max(0, Math.floor((Math.min(xi, xj) - minX) / cell));
+      const cx1 = Math.min(columns - 1, Math.floor((Math.max(xi, xj) - minX) / cell));
+      for (let cy = b0; cy <= b1; cy++) {
+        for (let cx = cx0; cx <= cx1; cx++) {
+          const key = cy * columns + cx;
+          const list = cells.get(key) ?? [];
+          list.push(c, i);
+          cells.set(key, list);
+        }
+      }
+    }
+    bands.push(perBand);
+  });
+  return { shape, minY, band, bands, cell, minX, columns, cells };
+}
+
+/** Even-odd membership of one contour, visiting only the edges whose y range spans the point. */
+function containsIndexed(index: ShapeIndex, c: number, x: number, y: number): boolean {
+  const b = Math.floor((y - index.minY) / index.band);
+  const perBand = index.bands[c];
+  if (b < 0 || b >= perBand.length) return false;
+  const points = index.shape[c];
+  let hit = false;
+  for (const i of perBand[b]) {
+    const [xi, yi] = points[i];
+    const [xj, yj] = points[i === 0 ? points.length - 1 : i - 1];
+    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+  }
+  return hit;
+}
+
+/** Inside the outer contour and outside every hole, the same decision as `insideShape`. */
+export function insideIndexed(index: ShapeIndex, x: number, y: number): boolean {
+  if (!containsIndexed(index, 0, x, y)) return false;
+  for (let c = 1; c < index.shape.length; c++) if (containsIndexed(index, c, x, y)) return false;
+  return true;
+}
+
+/** Whether some segment lies within `distance` of the point, the same decision as `contourDistance(...) <= distance`; `distance` must not exceed the index cell. */
+export function nearContour(index: ShapeIndex, x: number, y: number, distance: number): boolean {
+  const cx = Math.floor((x - index.minX) / index.cell);
+  const cy = Math.floor((y - index.minY) / index.cell);
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      const list = index.cells.get((cy + dy) * index.columns + cx + dx);
+      if (!list) continue;
+      for (let k = 0; k < list.length; k += 2) {
+        const points = index.shape[list[k]];
+        const i = list[k + 1];
+        const [px, py] = points[i === 0 ? points.length - 1 : i - 1];
+        const [qx, qy] = points[i];
+        const ex = qx - px, ey = qy - py;
+        const t = Math.max(0, Math.min(1, ((x - px) * ex + (y - py) * ey) / (ex * ex + ey * ey || 1)));
+        if (Math.hypot(x - (px + ex * t), y - (py + ey * t)) <= distance) return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -144,6 +261,7 @@ function insideShape(shape: Vec2[][], x: number, y: number): boolean {
  * per build.
  */
 export function triangulateCap(shape: Vec2[][], maxEdge: number, spacing: number): CapMesh {
+  const started = performance.now();
   const sampled = resample(shape, maxEdge);
   const points: Vec2[] = sampled.points.slice();
   const boundary: number[] = sampled.points.map(() => 1);
@@ -156,15 +274,18 @@ export function triangulateCap(shape: Vec2[][], maxEdge: number, spacing: number
   }
   // A regular grid: its cocircular squares are resolved consistently by the robust triangulator, and the
   // regular triangles sample the smooth field evenly.
+  const index = indexShape(shape, maxEdge);
   for (let y = minY + spacing * 0.37; y < maxY; y += spacing) {
     for (let x = minX + spacing * 0.41; x < maxX; x += spacing) {
-      if (insideShape(shape, x, y) && contourDistance(shape, x, y) > maxEdge * 0.9) {
+      if (insideIndexed(index, x, y) && !nearContour(index, x, y, maxEdge * 0.9)) {
         points.push([x, y]);
         boundary.push(0);
       }
     }
   }
 
+  lastBuild.phases.points = performance.now() - started;
+  const triangulating = performance.now();
   // Delaunay triangulation with robust orientation predicates, then only the triangles inside the cap, counterclockwise.
   const flat = new Float64Array(points.length * 2);
   points.forEach(([x, y], i) => {
@@ -176,12 +297,13 @@ export function triangulateCap(shape: Vec2[][], maxEdge: number, spacing: number
   for (let t = 0; t < delaunay.triangles.length; t += 3) {
     const a = delaunay.triangles[t], b = delaunay.triangles[t + 1], c = delaunay.triangles[t + 2];
     const [ax, ay] = points[a], [bx, by] = points[b], [cx, cy] = points[c];
-    if (!insideShape(shape, (ax + bx + cx) / 3, (ay + by + cy) / 3)) continue;
+    if (!insideIndexed(index, (ax + bx + cx) / 3, (ay + by + cy) / 3)) continue;
     const area = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
     if (Math.abs(area) < 1e-14) continue;
     if (area > 0) triangles.push(a, b, c);
     else triangles.push(a, c, b);
   }
+  lastBuild.phases.triangulate = performance.now() - triangulating;
   const xy: number[] = [];
   for (const [x, y] of points) xy.push(x, y);
   return { xy, boundary, triangles, contours: sampled.contours };
@@ -206,7 +328,7 @@ interface Field {
  * keeping the cap-to-bevel join tangent, then scaled to the dome height.
  */
 function solveField(shape: Vec2[][], spacing: number, amplitude: number): Field {
-  const [contour, ...holes] = shape;
+  const [contour] = shape;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const [x, y] of contour) {
     minX = Math.min(minX, x);
@@ -218,13 +340,16 @@ function solveField(shape: Vec2[][], spacing: number, amplitude: number): Field 
   minY -= 2 * spacing;
   const nx = Math.ceil((maxX - minX) / spacing) + 3;
   const ny = Math.ceil((maxY - minY) / spacing) + 3;
+  const classifying = performance.now();
+  const index = indexShape(shape, spacing * 2);
   const inside = new Uint8Array(nx * ny);
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i < nx; i++) {
-      const x = minX + i * spacing, y = minY + j * spacing;
-      if (contains(contour, x, y) && !holes.some((hole) => contains(hole, x, y))) inside[j * nx + i] = 1;
+      if (insideIndexed(index, minX + i * spacing, minY + j * spacing)) inside[j * nx + i] = 1;
     }
   }
+  lastBuild.phases.classify = performance.now() - classifying;
+  const solving = performance.now();
   const u = new Float64Array(nx * ny);
   const load = spacing * spacing;
   const omega = 1.85;
@@ -247,6 +372,7 @@ function solveField(shape: Vec2[][], spacing: number, amplitude: number): Field 
     }
     sweeps++;
   }
+  lastBuild.phases.solve = performance.now() - solving;
   lastBuild.gridNodes = nx * ny;
   lastBuild.sweeps = sweeps;
   lastBuild.lastUpdate = peak > 0 ? largest / peak : 0;
@@ -302,6 +428,7 @@ function domedCap(capZ: number, part: Part): { positions: Float32Array; normals:
   const field = solveField(shape, EXTRUSION.domeGrid, EXTRUSION.dome[part]);
   lastBuild.capVertices = mesh.xy.length / 2;
   lastBuild.capTriangles = mesh.triangles.length / 3;
+  const lifting = performance.now();
   const vertexCount = mesh.xy.length / 2;
   const lifted = new Float32Array(vertexCount * 3);
   const normal = new Float32Array(vertexCount * 3);
@@ -330,6 +457,7 @@ function domedCap(capZ: number, part: Part): { positions: Float32Array; normals:
     out.positions.set(lifted.subarray(v * 3, v * 3 + 3), k * 3);
     out.normals.set(normal.subarray(v * 3, v * 3 + 3), k * 3);
   });
+  lastBuild.phases.lift = performance.now() - lifting;
   lastBuild.buildMs = performance.now() - started;
   return out;
 }

@@ -22,7 +22,7 @@ import {
   thickness,
   type Vec2,
 } from './monogram';
-import { createPartGeometry, lastBuild, triangulateCap, type CapMesh } from './monogramMesh';
+import { contourDistance, createPartGeometry, indexShape, insideIndexed, insideShape, lastBuild, nearContour, triangulateCap, type CapMesh } from './monogramMesh';
 
 const DESKTOP_VIEW = { width: 1440, height: 900 };
 const PHONE_VIEW = { width: 390, height: 844 };
@@ -233,8 +233,8 @@ describe('the solid', () => {
     expect(lastBuild.capVertices).toBeLessThan(16000);
     expect(lastBuild.sweeps).toBeLessThan(4000);
     expect(lastBuild.lastUpdate).toBeLessThan(2e-6);
-    expect(lastBuild.buildMs).toBeLessThan(1000);
-    expect(totalMs).toBeLessThan(1600);
+    expect(lastBuild.buildMs).toBeLessThan(400);
+    expect(totalMs).toBeLessThan(900);
     expect(position.count).toBeLessThan(400000);
   });
 
@@ -451,5 +451,82 @@ describe('the cap triangulation', () => {
     const roots = new Set<number>();
     for (let i = 0; i < parent.length; i++) roots.add(find(i));
     expect(roots.size).toBe(1);
+  });
+});
+
+describe('the shape index', () => {
+  const shape = contours(OUTLINES.emblem);
+
+  it('answers inside and distance queries exactly as scanning every edge does, on the whole field grid, interior grid, and cap', () => {
+    const mesh: CapMesh = triangulateCap(shape, EXTRUSION.domeEdge, EXTRUSION.domeEdge * 1.2);
+    const gridIndex = indexShape(shape, EXTRUSION.domeGrid * 2);
+    const capIndex = indexShape(shape, EXTRUSION.domeEdge);
+    let checked = 0;
+    // The field grid, laid out exactly as the solver lays it out: every node, byte for byte, including nodes
+    // outside the oval and inside the hole.
+    const outerBounds = bounds2(shape[0]);
+    const g = EXTRUSION.domeGrid;
+    const minX = outerBounds.minX - 2 * g, minY = outerBounds.minY - 2 * g;
+    const nx = Math.ceil((outerBounds.maxX - minX) / g) + 3, ny = Math.ceil((outerBounds.maxY - minY) / g) + 3;
+    let mismatches = 0;
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        if (insideIndexed(gridIndex, minX + i * g, minY + j * g) !== insideShape(shape, minX + i * g, minY + j * g)) mismatches++;
+        checked++;
+      }
+    }
+    expect(mismatches).toBe(0);
+    expect(checked).toBeGreaterThan(50000);
+    // The interior grid's candidates, laid out exactly as the triangulation lays them out: membership and the
+    // clearance decision for every one, so the admitted points and their order are unchanged.
+    const sampledBounds = bounds2(mesh.contours.flatMap((c) => c.map((v) => [mesh.xy[v * 2], mesh.xy[v * 2 + 1]] as Vec2)));
+    const spacing = EXTRUSION.domeEdge * 1.2;
+    const clearance = EXTRUSION.domeEdge * 0.9;
+    let candidates = 0;
+    for (let y = sampledBounds.minY + spacing * 0.37; y < sampledBounds.maxY; y += spacing) {
+      for (let x = sampledBounds.minX + spacing * 0.41; x < sampledBounds.maxX; x += spacing) {
+        if (insideIndexed(capIndex, x, y) !== insideShape(shape, x, y)) mismatches++;
+        if (nearContour(capIndex, x, y, clearance) !== contourDistance(shape, x, y) <= clearance) mismatches++;
+        candidates++;
+      }
+    }
+    expect(mismatches).toBe(0);
+    expect(candidates).toBeGreaterThan(5000);
+    // Exact contour vertices, and queries level with a vertex (a horizontal crossing through it) or directly
+    // above and below it (a vertical one), which exercise the half-open crossing convention.
+    let probes = 0;
+    for (const points of shape) {
+      for (let i = 0; i < points.length; i += 5) {
+        const [vx, vy] = points[i];
+        for (const [x, y] of [
+          [vx, vy],
+          [vx - g, vy],
+          [vx + g, vy],
+          [vx, vy - g],
+          [vx, vy + g],
+          [vx - 0.5 * g, vy],
+          [vx + 0.5 * g, vy],
+        ] as Vec2[]) {
+          if (insideIndexed(gridIndex, x, y) !== insideShape(shape, x, y)) mismatches++;
+          if (insideIndexed(capIndex, x, y) !== insideShape(shape, x, y)) mismatches++;
+          if (nearContour(capIndex, x, y, clearance) !== contourDistance(shape, x, y) <= clearance) mismatches++;
+          probes++;
+        }
+      }
+    }
+    expect(mismatches).toBe(0);
+    expect(probes).toBeGreaterThan(2000);
+    // Every cap triangle's centroid, which is what decides which triangles are kept.
+    for (let t = 0; t < mesh.triangles.length; t += 3) {
+      let cx = 0, cy = 0;
+      for (let k = 0; k < 3; k++) {
+        cx += mesh.xy[mesh.triangles[t + k] * 2] / 3;
+        cy += mesh.xy[mesh.triangles[t + k] * 2 + 1] / 3;
+      }
+      expect(insideIndexed(capIndex, cx, cy)).toBe(true);
+      expect(insideShape(shape, cx, cy)).toBe(true);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(56000);
   });
 });
